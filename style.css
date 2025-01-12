@@ -1,0 +1,102 @@
+#preset-util_ref_del_col_qs, #preset-util_ref_del_col_ds{
+    min-width: unset !important;
+    min-height: unset !important;
+    flex-grow: 0 !important;
+    padding: 0;
+    row-gap: 0;
+}
+
+#preset-util_ref_del_col_qs > button, #preset-util_ref_del_col_ds > button{
+    /*
+    min-width: 2em;
+    min-height: 2em;
+    */
+    max-width: 1.4em;
+    max-height: 1.4em;
+    flex-grow: 0;
+    padding-left: 0.25em;
+    padding-right: 0.25em;
+    margin: 0.1em 0;
+}
+
+#preset-util_ref_del_col_ds > button[id=preset-util_del_ds_bttn]{
+    max-width: unset;
+    max-height: 1.75em;
+}
+#preset-util_ref_del_col_qs > div[class*=gr-form], #preset-util_ref_del_col_ds > div[class*=gr-form]{
+    min-width: unset !important;
+    min-height: unset !important;
+    padding-left: 0.25em;
+    padding-right: 0.25em;
+    margin: 0.1em 0;
+    flex-grow: 0;
+}
+
+#preset-util_ref_del_col_qs div[id=preset_util_stackable_check_det], #preset-util_ref_del_col_ds div[id=preset_util_stackable_check_det]{
+    padding: 0.125em;
+}
+
+
+#preset-util_save_qs_bttn, #preset-util_save_ds_bttn{
+    min-height: 100% !important;
+}
+
+#preset-v_Preset1_btn,
+#preset-v_Preset2_btn,
+#preset-v_Preset3_btn,
+#preset-v_size1_btn,
+#preset-v_size2_btn,
+#preset-v_size3_btn,
+#preset-v_hide_all_bttn,
+#preset-v_show_all_bttn,
+#preset-v_lock1_btn
+ {
+    min-width: min(80px, 100%) !important;
+}
+
+
+/*
+@media (min-width: 708px){
+    #txt2img_preset_manager_accordion, #img2img_preset_manager_accordion{
+        min-width:40vw;
+    }
+}
+@media (max-width:707px){
+    #txt2img_preset_manager_accordion, #img2img_preset_manager_accordion{
+        min-width: 90vw;
+    }
+}
+@media (max-width:679px){
+    #txt2img_preset_manager_accordion, #img2img_preset_manager_accordion{
+        min-width: 70vw;
+    }
+}
+*/
+/*
+#txt2img_ref_del_col_qs, #img2img_ref_del_col_qs, #txt2img_ref_del_col_ds, #img2img_ref_del_col_ds{
+    min-width: unset !important;
+    flex-grow: 0 !important;
+    padding: 0;
+    row-gap: 0;
+}
+
+#txt2img_ref_del_col_qs > button, #img2img_ref_del_col_qs > button, #txt2img_ref_del_col_ds > button, #img2img_ref_del_col_ds > button{
+    min-width: 2em;
+    min-height: 2em;
+    max-width: 1.4em;
+    max-height: 1.4em;
+    flex-grow: 0;
+    padding-left: 0.25em;
+    padding-right: 0.25em;
+    margin: 0.1em 0;
+}
+
+#txt2img_save_qs_bttn, #img2img_save_ds_bttn{
+    min-height: 100%;
+}
+*/
+/*
+#txt2img_preset_qs_dd, #img2img_preset_qs_dd{
+    align-self: center;
+}
+*/
