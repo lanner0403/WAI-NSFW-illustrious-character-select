@@ -1,5 +1,8 @@
+import base64
 from cProfile import label
+import io
 import random
+from PIL import Image
 import gradio as gr
 import modules.sd_samplers
 import modules.scripts as scripts
@@ -32,7 +35,7 @@ try:
 except:
     pass
 
-update_flag = "preset_manager_update_check"
+update_flag = "CharacterSelect_update_check"
 
 additional_config_source = "additional_components.json"
 additional_config_target = "additional_configs.json"
@@ -58,92 +61,68 @@ class CharacterSelect(scripts.Script):
 
     BASEDIR = scripts.basedir()
 
-    def update_component_name(self, preset, oldval, newval):
-        if preset.get(oldval) is not None:
-            preset[newval] = preset.pop(oldval)
-
-    def update_config(self):
-        """This is a as per need method that will change per need"""
-        component_remap = {
-            "Highres. fix": "Hires. fix",
-            "Firstpass width": "Upscaler",
-            "Firstpass height": "Upscale by",
-            "Sampling Steps": "Sampling steps",
-            "Hires. steps": "Hires steps"
-            }
-        
-        if repo == "vlads":
-            component_remap.update({
-                "Hires. fix" : "Hires fix"
-            })
-
-        
-        config = self.get_config(self.settings_file)
-        for preset in config.values():
-            for old_val, new_val in component_remap.items():
-                self.update_component_name(preset, old_val, new_val)
-                    
-        #PresetManager.all_presets = config
-        #self.save_config(self.settings_file, config)
-
-
     def __init__(self, *args, **kwargs):
+        # components that pass through after_components
+        self.all_components = []
         
         self.compinfo = namedtuple("CompInfo", ["component", "label", "elem_id", "kwargs"])
 
-        self.settings_file = "presets.json"
-        self.additional_settings_file = "additional_configs.json"
+        self.settings_file = "settings.json"
+        self.character_file = "character.json"
+        self.action_file = "action.json"
+        self.custom_settings_file = "custom_settings.json"
+        self.custom_character_file = "custom_character.json"
+        self.custom_action_file = "custom_action.json"
 
         # Read saved settings
-        CharacterSelect.all_presets = self.get_config(self.settings_file)
-        CharacterSelect.size_presets = self.get_config(self.additional_settings_file)
+        self.settings = self.get_config2(self.settings_file)
+        self.character = self.get_config2(self.character_file)
+        self.action = self.get_config2(self.action_file)
         
-        self.available_components = list(CharacterSelect.all_presets["Reset"].keys())
-        self.available_size_components = list(CharacterSelect.size_presets["Width"].keys())
-        
-        if is_update_available:
-            self.update_config()
+        self.copy_json_file(self.settings_file,self.custom_settings_file)
+        self.copy_json_file(self.character_file,self.custom_character_file)
+        self.copy_json_file(self.action_file,self.custom_action_file)
 
-        # components that pass through after_components
-        self.all_components = []
+        try:
+            self.settings = self.get_config2(self.custom_settings_file)
+        except:
+            print(f"錯誤：自訂設定 '{self.custom_settings_file}' 不存在")
 
-        # Initialize
-        self.component_map = {k: None for k in self.available_components}
-        self.size_component_map = {k:None for k in self.available_size_components}
-        #self.additional_components = [x for x in self.additional_components_map] # acts like available_components list for additional components
+        try:
+            self.character = self.get_config2(self.custom_character_file)
+        except:
+            print(f"錯誤：自訂人物 '{self.custom_character_file}' 不存在")
 
-        # combine defaults and choices
-        #self.component_map = {**self.component_map, **self.additional_components_map}
-        #self.available_components = self.available_components + self.additional_components
+        try:
+            self.action = self.get_config2(self.custom_action_file)
+        except:
+            print(f"錯誤：自訂動作 '{self.custom_action_file}' 不存在")
 
-        #色色大師設定
-        self.hm_config_1 = "hm_config_1.json"
-        self.hm_config_2 = "hm_config_2.json"
-        self.hm_config_3 = "hm_config_3.json"
-        self.hm_config_4 = "hm_config_4.json"
-        self.hm_config_5 = "hm_config_5.json"
-        self.hm_config_6 = "hm_config_6.json"
-        self.hm_config_7 = "hm_config_7.json"
+        #設定
+        self.hm_config_1 = "custom_character.json"
+        self.hm_config_2 = "custom_action.json"
+        self.hm_config_7 = "wai_character.json"
+        self.hm_config_8 = "wai_character2.json"
 
         self.localizations = "localizations\zh_TW.json"
 
-        self.hm_config_1_component = self.get_config(self.hm_config_1)
-        self.hm_config_2_component = self.get_config(self.hm_config_2)
-        self.hm_config_3_component = self.get_config(self.hm_config_3)
-        self.hm_config_4_component = self.get_config(self.hm_config_4)
-        self.hm_config_5_component = self.get_config(self.hm_config_5)
-        self.hm_config_6_component = self.get_config(self.hm_config_6)
+        self.hm_config_1_component = self.get_config2(self.hm_config_1)
         for item in self.get_character(self.hm_config_7):
             self.hm_config_1_component.update({item : item})
+        for item in self.get_character(self.hm_config_8):
+            self.hm_config_1_component.update({item : item})
+
+
+        self.hm_config_2_component = self.get_config2(self.hm_config_2)
+
+        self.hm_config_1_img = self.get_characterimg(self.hm_config_7)
+        for item in self.get_characterimg(self.hm_config_8):
+            self.hm_config_1_img.append(item)
         
         self.localizations_component = self.get_config2(self.localizations)
 
         self.hm1prompt = ""
         self.hm2prompt = ""
-        self.hm3prompt = ""
-        self.hm4prompt = ""
-        self.hm5prompt = ""
-        self.hm6prompt = ""
 
         #text value
         self.hm1btntext = ""
@@ -159,224 +138,115 @@ class CharacterSelect(scripts.Script):
         #隨機的face也要記下來 避免蓋掉
         self.faceprompt = ""
 
-        self.allfuncprompt = ""
+        self.allfuncprompt = "nsfw++++,"
 
         #前一次的 cprompt
         self.oldcprompt=""
+
+        self.elm_prfx = "characterselect"
+        CharacterSelect.txt2img_neg_prompt_btn = gr.Button(
+            value="使用預設值",
+            variant="primary",
+            render = False,
+            elem_id=f"{self.elm_prfx}_neg_prompt_btn"
+        )
+        CharacterSelect.txt2img_prompt_btn = gr.Button(
+            value="使用提詞",
+            variant="primary",
+            render = False,
+            elem_id=f"{self.elm_prfx}_prompt_btn"
+        )
+        CharacterSelect.txt2img_radom_prompt_btn = gr.Button(
+            value="隨機",
+            variant="primary",
+            render = False,
+            elem_id=f"{self.elm_prfx}_randomprompt_btn"
+        )
+
+        #h_m 人物
+        CharacterSelect.txt2img_hm1_dropdown = gr.Dropdown(
+            label="人物",
+            choices=list(self.hm_config_1_component.keys()),
+            render = False,
+            elem_id=f"{self.elm_prfx}_hm1_dd"
+        )
+
+        CharacterSelect.txt2img_hm1_slider = gr.Slider(
+            minimum = 0,
+            maximum = len(self.hm_config_1_component) - 1,
+            value = 0,
+            step = 1,
+            render = False,
+            elem_id=f"{self.elm_prfx}_hm1_slider"
+        )
+
+        CharacterSelect.txt2img_hm1_img = gr.Image(
+            width = 100
+        )
+
+        #h_m 姿勢
+        CharacterSelect.txt2img_hm2_dropdown = gr.Dropdown(
+            label="姿勢",
+            choices=list(self.hm_config_2_component.keys()),
+            render = False,
+            elem_id=f"{self.elm_prfx}_hm2_dd"
+        )
+
+        #功能性調節
+        CharacterSelect.func00_chk =gr.Checkbox(
+            label="NSFW",
+            render = False,
+            container = False,
+            value = True,
+            elem_id=f"{self.elm_prfx}_func00_chk"
+        )
+        CharacterSelect.func01_chk =gr.Checkbox(
+            label="more detail",
+            render = False,
+            container = False,
+            elem_id=f"{self.elm_prfx}_func01_chk"
+        )
+        CharacterSelect.func02_chk =gr.Checkbox(
+            label="less detail",
+            render = False,
+            container = False,
+            elem_id=f"{self.elm_prfx}_func02_chk"
+        )
+        CharacterSelect.func03_chk = gr.Checkbox(
+            label="quality",
+            render = False,
+            container = False,
+            elem_id=f"{self.elm_prfx}_func03_chk"
+        )
+        CharacterSelect.func04_chk =gr.Checkbox(
+            label="character enhance",
+            render = False,
+            container = False,
+            elem_id=f"{self.elm_prfx}_func04_chk"
+        )
+
+        #鎖定
+        CharacterSelect.txt2img_lock1_btn = gr.Button(
+            value="",
+            variant="primary",
+            render = False,
+            elem_id=f"{self.elm_prfx}_lock1_btn"
+        )
+        CharacterSelect.txt2img_lock2_btn = gr.Button(
+            value="",
+            variant="primary",
+            render = False,
+            elem_id=f"{self.elm_prfx}_lock2_btn"
+        )
     
     def fakeinit(self, *args, **kwargs):
         """
         __init__ workaround, since some data is not available during instantiation, such as is_img2img, filename, etc.
         This method is called from .show(), as that's the first method ScriptRunner calls after handing some state dat (is_txt2img, is_img2img2)
-        """
-        #self.elm_prfx = f"{'txt2img' if self.is_txt2img else 'img2img'}"
-        self.elm_prfx = "characterselect"
-
-
-        # UI elements
-        # class level
-        # NOTE: Would love to use one component rendered twice, but gradio does not allow rendering twice, so I need one per page
-        if self.is_txt2img:
-            # quick set tab
-            CharacterSelect.txt2img_preset_dropdown = gr.Dropdown(
-                label="Presets",
-                choices=list(CharacterSelect.all_presets.keys()),
-                render = False,
-                elem_id=f"{self.elm_prfx}_preset_qs_dd"
-            )
-            #else:
-            # quick set tab
-            CharacterSelect.img2img_preset_dropdown = gr.Dropdown(
-                label="Presets",
-                choices=list(CharacterSelect.all_presets.keys()),
-                render = False,
-                elem_id=f"{self.elm_prfx}_preset_qs_dd"
-            )
-            # size ddl
-            CharacterSelect.txt2img_size_dropdown = gr.Dropdown(
-                label="Size",
-                choices=list(CharacterSelect.size_presets.keys()),
-                render = False,
-                elem_id=f"{self.elm_prfx}_size_qs_dd"
-            )
-
-
-            #按鈕版
-            CharacterSelect.txt2img_preset1_btn = gr.Button(
-                value="快速",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_Preset1_btn"
-            )
-            CharacterSelect.txt2img_preset2_btn = gr.Button(
-                value="優質",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_Preset2_btn"
-            )
-            CharacterSelect.txt2img_preset3_btn = gr.Button(
-                value="極優",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_Preset3_btn"
-            )
-
-            CharacterSelect.txt2img_size1_btn = gr.Button(
-                value="寬",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_size1_btn"
-            )
-            CharacterSelect.txt2img_size2_btn = gr.Button(
-                value="高",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_size2_btn"
-            )
-            CharacterSelect.txt2img_size3_btn = gr.Button(
-                value="方",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_size3_btn"
-            )
-            CharacterSelect.txt2img_prompt_btn = gr.Button(
-                value="使用自訂提詞",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_prompt_btn"
-            )
-            CharacterSelect.txt2img_radom_prompt_btn = gr.Button(
-                value="隨機",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_randomprompt_btn"
-            )
-
-            #h_m 人物
-            CharacterSelect.txt2img_hm1_dropdown = gr.Dropdown(
-                label="人物",
-                choices=list(self.hm_config_1_component.keys()),
-                render = False,
-                elem_id=f"{self.elm_prfx}_hm1_dd"
-            )
-
-
-            #h_m 姿勢
-            CharacterSelect.txt2img_hm2_dropdown = gr.Dropdown(
-                label="姿勢",
-                choices=list(self.hm_config_2_component.keys()),
-                render = False,
-                elem_id=f"{self.elm_prfx}_hm2_dd"
-            )
-
-            #h_m 衣服
-            CharacterSelect.txt2img_hm4_dropdown = gr.Dropdown(
-                label="衣服",
-                choices=list(self.hm_config_4_component.keys()),
-                render = False,
-                elem_id=f"{self.elm_prfx}_hm4_dd"
-            )
-
-            #h_m 細節
-            CharacterSelect.txt2img_hm6_dropdown = gr.Dropdown(
-                label="細節",
-                choices=list(self.hm_config_6_component.keys()),
-                render = False,
-                elem_id=f"{self.elm_prfx}_hm6_dd"
-            )
-
-            #隨機色色設定
-            CharacterSelect.randset1_chk =gr.Checkbox(
-                label="不使用人物lora",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_randset1_chk"
-            )
-            CharacterSelect.randset2_chk =gr.Checkbox(
-                label="不使用姿勢lora",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_randset2_chk"
-            )
-            CharacterSelect.randset3_chk =gr.Checkbox(
-                label="人物lora使用時，不使用衣服lora",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_randset3_chk"
-            )
-            CharacterSelect.randset4_chk =gr.Checkbox(
-                label="不使用場景lora",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_randset4_chk"
-            )
-
-            #功能性調節
-            CharacterSelect.func10_chk =gr.Checkbox(
-                label="more detail",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_func10_chk"
-            )
-            CharacterSelect.func11_chk =gr.Checkbox(
-                label="less detail",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_func11_chk"
-            )
-            CharacterSelect.func12_chk =gr.Checkbox(
-                label="quality",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_func12_chk"
-            )
-            CharacterSelect.func14_chk =gr.Checkbox(
-                label="character",
-                render = False,
-                container = False,
-                elem_id=f"{self.elm_prfx}_func14_chk"
-            )
-
-            #鎖定
-            CharacterSelect.txt2img_lock1_btn = gr.Button(
-                value="",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_lock1_btn"
-            )
-            CharacterSelect.txt2img_lock2_btn = gr.Button(
-                value="",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_lock2_btn"
-            )
-            CharacterSelect.txt2img_lock3_btn = gr.Button(
-                value="",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_lock3_btn"
-            )
-            #中文輸入框
-            CharacterSelect.txt2img_cprompt_txt = gr.Textbox(lines=4, placeholder="可輸入中文描述", label="Ollama Prompt", elem_id=f"{self.elm_prfx}_cprompt_txt")
-            CharacterSelect.txt2img_cprompt_btn = gr.Button(
-                value="送出",
-                label="cpromptbtn",
-                variant="primary",
-                render = False,
-                elem_id=f"{self.elm_prfx}_cprompt_btn"
-            )
-
-        self.input_prompt = CharacterSelect.txt2img_cprompt_txt
-
-        # instance level
-        # quick set tab
-        #self.stackable_check = gr.Checkbox(value=True, label="Stackable", elem_id=f"{self.elm_prfx}_stackable_check", render=False)
-        #self.save_as = gr.Text(render=False, label="Quick Save", elem_id=f"{self.elm_prfx}_save_qs_txt")
-        #self.save_button = gr.Button(value="Save", variant="secondary", render=False, visible=False, elem_id=f"{self.elm_prfx}_save_qs_bttn")
-
+        """ 
+        
         self.hide_all_button = gr.Button(value="簡易版", variant="primary", render=False, visible=True, elem_id=f"{self.elm_prfx}_hide_all_bttn")
         self.show_all_button = gr.Button(value="一般版", variant="primary", render=False, visible=True, elem_id=f"{self.elm_prfx}_show_all_bttn")
-
         self.lock_seed_button = gr.Button(value="鎖定seed", variant="primary", render=False, visible=True, elem_id=f"{self.elm_prfx}_lock_seed_bttn")
         self.rdn_seed_button = gr.Button(value="隨機seed", variant="primary", render=False, visible=True, elem_id=f"{self.elm_prfx}_rdn_seed_bttn")
 
@@ -390,80 +260,32 @@ class CharacterSelect(scripts.Script):
         #if kwargs.get("elem_id") == "":#f"{'txt2img' if self.is_txt2img else 'img2img'}_progress_bar":
         #print(kwargs.get("label") == self.before_component_label, "TEST", kwargs.get("label"))
         #if kwargs.get("label") == self.before_component_label:
-            with gr.Accordion(label="簡易設定", open = True, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_preset_manager_accordion"):
-                #with gr.Row(equal_height = True):
-                    #if self.is_txt2img:
-                        #PresetManager.txt2img_preset_dropdown.render()
-                    #else:
-                        #PresetManager.img2img_preset_dropdown.render()
-                with gr.Row(equal_height = True):
-                    CharacterSelect.txt2img_preset1_btn.render()
-                    CharacterSelect.txt2img_preset2_btn.render()
-                    CharacterSelect.txt2img_preset3_btn.render()
-                    #with gr.Column(elem_id=f"{self.elm_prfx}_ref_del_col_qs"):
-                        #self.stackable_check.render()
-                #with gr.Row(equal_height = True):
-                    #PresetManager.txt2img_size_dropdown.render()
-                with gr.Row(equal_height = True):
-                    CharacterSelect.txt2img_size1_btn.render()
-                    CharacterSelect.txt2img_size2_btn.render()
-                    CharacterSelect.txt2img_size3_btn.render()
+        with gr.Row(equal_height = True):
+            CharacterSelect.txt2img_neg_prompt_btn.render()
+        with gr.Accordion(label="人物動作設定", open = True, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_preset_manager_accordion"):
             with gr.Row(equal_height = True):
-                self.hide_all_button.render()
-                self.show_all_button.render()
+                CharacterSelect.txt2img_hm1_dropdown.render() 
             with gr.Row(equal_height = True):
-                CharacterSelect.txt2img_prompt_btn.render()
-            with gr.Accordion(label="色色設定", open = False, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_h_setting_accordion"):
-                with gr.Accordion(label="提詞設定", open = False, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_prompt_setting_accordion"):
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.txt2img_hm1_dropdown.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.txt2img_hm2_dropdown.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.txt2img_hm3_dropdown.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.txt2img_hm4_dropdown.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.txt2img_hm5_dropdown.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.txt2img_hm6_dropdown.render() 
-                with gr.Accordion(label="隨機設定", open = False, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_randh_setting_accordion"):
-                    CharacterSelect.randset1_chk.render()
-                    CharacterSelect.randset2_chk.render()
-                    CharacterSelect.randset3_chk.render()
-                    CharacterSelect.randset4_chk.render()
-                with gr.Accordion(label="細節設定", open = False, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_f_setting_accordion"):
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.func1_chk.render()
-                        CharacterSelect.func2_chk.render()
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.func3_chk.render() 
-                        CharacterSelect.func4_chk.render()
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.func5_chk.render()
-                        CharacterSelect.func6_chk.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.func7_chk.render() 
-                        CharacterSelect.func8_chk.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.func9_chk.render() 
-                        CharacterSelect.func10_chk.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.func11_chk.render() 
-                        CharacterSelect.func12_chk.render() 
-                    with gr.Row(equal_height = True):
-                        CharacterSelect.func13_chk.render()
-                        CharacterSelect.func14_chk.render() 
-            with gr.Accordion(label="鎖定[人物][姿勢]", open = True, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_lock_accordion"):
-                with gr.Row(equal_height = True):
-                    CharacterSelect.txt2img_lock1_btn.render()
-                    CharacterSelect.txt2img_lock2_btn.render()
+                CharacterSelect.txt2img_hm1_slider.render() 
             with gr.Row(equal_height = True):
-                CharacterSelect.txt2img_radom_prompt_btn.render()
+                CharacterSelect.txt2img_hm1_img.render()
             with gr.Row(equal_height = True):
-                CharacterSelect.txt2img_cprompt_txt.render()
+                CharacterSelect.txt2img_hm2_dropdown.render() 
+        with gr.Row(equal_height = True):
+            CharacterSelect.txt2img_prompt_btn.render()
+        with gr.Accordion(label="其他設定", open = False, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_h_setting_accordion"):
             with gr.Row(equal_height = True):
-                CharacterSelect.txt2img_cprompt_btn.render()
+                CharacterSelect.func00_chk.render()
+                CharacterSelect.func01_chk.render()
+                CharacterSelect.func02_chk.render()
+                CharacterSelect.func03_chk.render() 
+                CharacterSelect.func04_chk.render()
+        with gr.Accordion(label="隨機[人物][姿勢]", open = True, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_lock_accordion"):
+            with gr.Row(equal_height = True):
+                CharacterSelect.txt2img_lock1_btn.render()
+                CharacterSelect.txt2img_lock2_btn.render()
+        with gr.Row(equal_height = True):
+            CharacterSelect.txt2img_radom_prompt_btn.render()
 
     def after_component(self, component, **kwargs):
         if hasattr(component, "label") or hasattr(component, "elem_id"):
@@ -474,27 +296,22 @@ class CharacterSelect(scripts.Script):
                                                       kwargs=kwargs
                                                      )
                                       )
-            #if hasattr(component, "label"):
-                #print(f"label:{component.label}")
-            #if hasattr(component, "elem_id"):
-                #print(f"elem_id:{component.elem_id}")
 
         label = kwargs.get("label")
         ele = kwargs.get("elem_id")
-        # TODO: element id
-        #if label in self.component_map or label in self.additional_components_map:# and ele == self.additional_components["additionalComponents"]) or (ele == self.additional_components["additionalComponents"]):
-        if label in self.component_map:# and ele == self.additional_components["additionalComponents"]) or (ele == self.additional_components["additionalComponents"]):
-            #!Hack to remove conflict between main Prompt and hr Prompt
-            if self.component_map[label] is None:
-                self.component_map.update({component.label: component})
 
-
-        if label in self.size_component_map:
-            if self.size_component_map[label] is None:
-                self.size_component_map.update({component.label: component})
         # 提示詞
         if ele == "txt2img_prompt": 
             self.prompt_component = component
+        if ele == "txt2img_neg_prompt": 
+            self.neg_prompt_component = component
+        if ele == "txt2img_steps": 
+            self.steps_component = component
+        if ele == "txt2img_height": 
+            self.height_component = component
+        if ele == "txt2img_width": 
+            self.width_component = component
+            
 
         if ele == "txt2img_generation_info_button" or ele == "img2img_generation_info_button":
             self._ui()
@@ -508,177 +325,73 @@ class CharacterSelect(scripts.Script):
     def _ui(self):
         # Conditional for class members
         if self.is_txt2img:
-            # Quick Set Tab
-            CharacterSelect.txt2img_preset_dropdown.change(
-                fn=self.fetch_valid_values_from_preset,
-                inputs=[CharacterSelect.txt2img_preset_dropdown] + [self.component_map[comp_name] for comp_name in list(x for x in self.available_components if self.component_map[x] is not None)],
-                outputs=[self.component_map[comp_name] for comp_name in list(x for x in self.available_components if self.component_map[x] is not None)],
-            )
-            #PresetManager.txt2img_size_dropdown.change(
-            #    fn=self.fetch_valid_values_from_size,
-            #    inputs=[PresetManager.txt2img_size_dropdown] + [self.size_component_map[comp_name] for comp_name in list(x for x in self.available_size_components if self.size_component_map[x] is not None)],
-            #    outputs=[self.size_component_map[comp_name] for comp_name in list(x for x in self.available_size_components if self.size_component_map[x] is not None)],
-            #)
-            CharacterSelect.txt2img_preset1_btn.click(
-                fn=self.fetch_valid_values_from_preset1,
-                outputs=[self.component_map[comp_name] for comp_name in list(x for x in self.available_components if self.component_map[x] is not None)],
-            ) 
-            CharacterSelect.txt2img_preset2_btn.click(
-                fn=self.fetch_valid_values_from_preset2,
-                outputs=[self.component_map[comp_name] for comp_name in list(x for x in self.available_components if self.component_map[x] is not None)],
-            )    
-            CharacterSelect.txt2img_preset3_btn.click(
-                fn=self.fetch_valid_values_from_preset3,
-                outputs=[self.component_map[comp_name] for comp_name in list(x for x in self.available_components if self.component_map[x] is not None)],
-            )               
-            CharacterSelect.txt2img_size1_btn.click(
-                fn=self.fetch_valid_values_from_size1,
-                outputs=[self.size_component_map[comp_name] for comp_name in list(x for x in self.available_size_components if self.size_component_map[x] is not None)],
-            )
-            CharacterSelect.txt2img_size2_btn.click(
-                fn=self.fetch_valid_values_from_size2,
-                outputs=[self.size_component_map[comp_name] for comp_name in list(x for x in self.available_size_components if self.size_component_map[x] is not None)],
-            )
-            CharacterSelect.txt2img_size3_btn.click(
-                fn=self.fetch_valid_values_from_size3,
-                outputs=[self.size_component_map[comp_name] for comp_name in list(x for x in self.available_size_components if self.size_component_map[x] is not None)],
-            )
             #色色大師功能區
             CharacterSelect.txt2img_prompt_btn.click(
                 fn=self.fetch_valid_values_from_prompt,
                 outputs=self.prompt_component
             )
-            CharacterSelect.txt2img_radom_prompt_btn.click(
-                fn=self.h_m_random_prompt,
-                inputs=[CharacterSelect.randset1_chk,CharacterSelect.randset2_chk,CharacterSelect.randset3_chk,CharacterSelect.randset4_chk],
-                outputs=[self.prompt_component, CharacterSelect.txt2img_lock1_btn, CharacterSelect.txt2img_lock2_btn]
+            CharacterSelect.txt2img_neg_prompt_btn.click(
+                fn=self.fetch_neg_prompt,
+                outputs=[self.neg_prompt_component,self.steps_component,self.height_component,self.width_component]
             )
             #hm
             CharacterSelect.txt2img_hm1_dropdown.change(
                 fn=self.hm1_setting,
                 inputs=[CharacterSelect.txt2img_hm1_dropdown,self.prompt_component],
-                outputs=[self.prompt_component, CharacterSelect.txt2img_lock1_btn]
+                outputs=[CharacterSelect.txt2img_lock1_btn, CharacterSelect.txt2img_hm1_img, self.prompt_component,CharacterSelect.txt2img_hm1_slider]
+            )
+            CharacterSelect.txt2img_hm1_slider.release(
+                fn=self.hm1_setting2,
+                inputs=[CharacterSelect.txt2img_hm1_slider,self.prompt_component],
+                outputs=[CharacterSelect.txt2img_hm1_dropdown]
             )
             CharacterSelect.txt2img_hm2_dropdown.change(
                 fn=self.hm2_setting,
-                inputs=[CharacterSelect.txt2img_hm2_dropdown,self.prompt_component],
-                outputs=[self.prompt_component, CharacterSelect.txt2img_lock2_btn]
+                inputs=[CharacterSelect.txt2img_hm2_dropdown, self.prompt_component],
+                outputs=[CharacterSelect.txt2img_hm2_dropdown, CharacterSelect.txt2img_lock2_btn, self.prompt_component]
             )
-            CharacterSelect.txt2img_hm3_dropdown.change(
-                fn=self.hm3_setting,
-                inputs=[CharacterSelect.txt2img_hm3_dropdown,self.prompt_component],
-                outputs=self.prompt_component
-            )
-            CharacterSelect.txt2img_hm4_dropdown.change(
-                fn=self.hm4_setting,
-                inputs=[CharacterSelect.txt2img_hm4_dropdown,self.prompt_component],
-                outputs=self.prompt_component
-            )
-            CharacterSelect.txt2img_hm5_dropdown.change(
-                fn=self.hm5_setting,
-                inputs=[CharacterSelect.txt2img_hm5_dropdown,self.prompt_component],
-                outputs=self.prompt_component
-            )
-            CharacterSelect.txt2img_hm6_dropdown.change(
-                fn=self.hm6_setting,
-                inputs=[CharacterSelect.txt2img_hm6_dropdown, self.prompt_component],
-                outputs=self.prompt_component
-            )
+            
             #細節功能
-            detailinput = [self.prompt_component,CharacterSelect.func1_chk,CharacterSelect.func2_chk,CharacterSelect.func3_chk,CharacterSelect.func4_chk,CharacterSelect.func5_chk,CharacterSelect.func6_chk,CharacterSelect.func7_chk,CharacterSelect.func8_chk,CharacterSelect.func9_chk,CharacterSelect.func10_chk,CharacterSelect.func11_chk,CharacterSelect.func12_chk,CharacterSelect.func13_chk,CharacterSelect.func14_chk]
-            CharacterSelect.func1_chk.change(
+            detailinput = [self.prompt_component,CharacterSelect.func00_chk,CharacterSelect.func01_chk,CharacterSelect.func02_chk,CharacterSelect.func03_chk,CharacterSelect.func04_chk]
+            CharacterSelect.func00_chk.change(
                 fn=self.func_setting,
                 inputs=detailinput,
                 outputs=self.prompt_component
             )
-            CharacterSelect.func2_chk.change(
+            CharacterSelect.func01_chk.change(
                 fn=self.func_setting,
                 inputs=detailinput,
                 outputs=self.prompt_component
             )
-            CharacterSelect.func3_chk.change(
+            CharacterSelect.func02_chk.change(
                 fn=self.func_setting,
                 inputs=detailinput,
                 outputs=self.prompt_component
             )
-            CharacterSelect.func4_chk.change(
+            CharacterSelect.func03_chk.change(
                 fn=self.func_setting,
                 inputs=detailinput,
                 outputs=self.prompt_component
             )
-            CharacterSelect.func5_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func6_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func7_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func8_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func9_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func10_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func11_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func12_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func13_chk.change(
-                fn=self.func_setting,
-                inputs=detailinput,
-                outputs=self.prompt_component
-            )
-            CharacterSelect.func14_chk.change(
+            CharacterSelect.func04_chk.change(
                 fn=self.func_setting,
                 inputs=detailinput,
                 outputs=self.prompt_component
             )
             #鎖定
-            CharacterSelect.txt2img_lock1_btn.click(
-                fn=self.prompt_lock1,
-                outputs=[CharacterSelect.txt2img_hm1_dropdown, CharacterSelect.txt2img_lock1_btn]
-            ) 
-            CharacterSelect.txt2img_lock2_btn.click(
-                fn=self.prompt_lock2,
-                outputs=[CharacterSelect.txt2img_hm2_dropdown, CharacterSelect.txt2img_lock2_btn]
+            #CharacterSelect.txt2img_lock1_btn.click(
+            #    fn=self.prompt_lock1,
+            #    outputs=[CharacterSelect.txt2img_hm1_dropdown, CharacterSelect.txt2img_lock1_btn]
+            #) 
+            #CharacterSelect.txt2img_lock2_btn.click(
+            #    fn=self.prompt_lock2,
+            #    outputs=[CharacterSelect.txt2img_hm2_dropdown, CharacterSelect.txt2img_lock2_btn]
+            #)
+            CharacterSelect.txt2img_radom_prompt_btn.click(
+                fn=self.h_m_random_prompt,
+                outputs=[self.prompt_component, CharacterSelect.txt2img_lock1_btn, CharacterSelect.txt2img_lock2_btn, CharacterSelect.txt2img_hm1_dropdown,CharacterSelect.txt2img_hm2_dropdown]
             )
-            #ai輸出
-            #self.input_prompt.change(self.input_prompt, self.input_prompt, None)
-            CharacterSelect.txt2img_cprompt_btn.click(
-                fn=self.cprompt_send,
-                inputs=[self.prompt_component, self.input_prompt],
-                outputs=self.prompt_component
-            )  
-        else:
-            # Quick Set Tab
-            CharacterSelect.img2img_preset_dropdown.change(
-                fn=self.fetch_valid_values_from_preset,
-                inputs=[CharacterSelect.img2img_preset_dropdown] + [self.component_map[comp_name] for comp_name in list(x for x in self.available_components if self.component_map[x] is not None)],
-                outputs=[self.component_map[comp_name] for comp_name in list(x for x in self.available_components if self.component_map[x] is not None)],
-            )
+
 
     def f_b_syncer(self):
         """
@@ -726,247 +439,53 @@ class CharacterSelect(scripts.Script):
             print(f"{e}\n{file} not found, check if it exists or if you have moved it.")
         return [item["title"] for item in as_dict["proj"]]
     
-
-    def fetch_valid_values_from_preset(self, selection, *comps_vals):
-        print(selection)
-        print(comps_vals)
-        return [
-            CharacterSelect.all_presets[selection][comp_name] 
-                if (comp_name in CharacterSelect.all_presets[selection] 
-                    and (
-                        True if not hasattr(self.component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.all_presets[selection][comp_name] in self.component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_components if self.component_map[x] is not None and hasattr(self.component_map[x], "value")))]
-    
-    def fetch_valid_values_from_size(self, selection, *comps_vals):
-        print(selection)
-        print(comps_vals)
-        return [
-            CharacterSelect.size_presets[selection][comp_name] 
-                if (comp_name in CharacterSelect.size_presets[selection] 
-                    and (
-                        True if not hasattr(self.size_component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.size_presets[selection][comp_name] in self.size_component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.size_component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_size_components if self.size_component_map[x] is not None and hasattr(self.size_component_map[x], "value")))]
-    
-    #按鈕版
-    def fetch_valid_values_from_preset1(self):
-        return [
-            CharacterSelect.all_presets["Quick"][comp_name] 
-                if (comp_name in CharacterSelect.all_presets["Quick"] 
-                    and (
-                        True if not hasattr(self.component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.all_presets["Quick"][comp_name] in self.component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_components if self.component_map[x] is not None and hasattr(self.component_map[x], "value")))]
-    
-    def fetch_valid_values_from_preset2(self):
-        return [
-            CharacterSelect.all_presets["Better"][comp_name] 
-                if (comp_name in CharacterSelect.all_presets["Better"] 
-                    and (
-                        True if not hasattr(self.component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.all_presets["Better"][comp_name] in self.component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_components if self.component_map[x] is not None and hasattr(self.component_map[x], "value")))]
-    
-    def fetch_valid_values_from_preset3(self):
-        return [
-            CharacterSelect.all_presets["Great"][comp_name] 
-                if (comp_name in CharacterSelect.all_presets["Great"] 
-                    and (
-                        True if not hasattr(self.component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.all_presets["Great"][comp_name] in self.component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_components if self.component_map[x] is not None and hasattr(self.component_map[x], "value")))]
-    
-    def fetch_valid_values_from_size1(self):
-        return [
-            CharacterSelect.size_presets["Width"][comp_name] 
-                if (comp_name in CharacterSelect.size_presets["Width"] 
-                    and (
-                        True if not hasattr(self.size_component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.size_presets["Width"][comp_name] in self.size_component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.size_component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_size_components if self.size_component_map[x] is not None and hasattr(self.size_component_map[x], "value")))]
-    
-    def fetch_valid_values_from_size2(self):
-        return [
-            CharacterSelect.size_presets["Height"][comp_name] 
-                if (comp_name in CharacterSelect.size_presets["Height"] 
-                    and (
-                        True if not hasattr(self.size_component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.size_presets["Height"][comp_name] in self.size_component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.size_component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_size_components if self.size_component_map[x] is not None and hasattr(self.size_component_map[x], "value")))]
-    
-    def fetch_valid_values_from_size3(self):
-        return [
-            CharacterSelect.size_presets["Square"][comp_name] 
-                if (comp_name in CharacterSelect.size_presets["Square"] 
-                    and (
-                        True if not hasattr(self.size_component_map[comp_name], "choices") 
-                            else 
-                            True if CharacterSelect.size_presets["Square"][comp_name] in self.size_component_map[comp_name].choices 
-                                else False 
-                        ) 
-                    ) 
-                else 
-                    self.size_component_map[comp_name].value
-                for i, comp_name in enumerate(list(x for x in self.available_size_components if self.size_component_map[x] is not None and hasattr(self.size_component_map[x], "value")))]
+    def get_characterimg(self, path, open_mode='r'):
+        file = os.path.join(CharacterSelect.BASEDIR, path)
+        try:
+            with open(file, open_mode) as f:
+                as_dict = json.load(f) 
+        except FileNotFoundError as e:
+            print(f"{e}\n{file} not found, check if it exists or if you have moved it.")
+        return [{item["title"]:item["image"]} for item in as_dict["proj"]]
     
     #自訂提詞
     def fetch_valid_values_from_prompt(self):
-        self.prompt_component.value = "nsfw++++,"
+        self.prompt_component.value = ""
         self.prompt_component.value += self.hm1prompt
         self.prompt_component.value += self.hm2prompt
-        self.prompt_component.value += self.hm3prompt
-        self.prompt_component.value += self.hm4prompt
-        self.prompt_component.value += self.hm5prompt
-        self.prompt_component.value += self.hm6prompt
         self.prompt_component.value += self.allfuncprompt
         return self.prompt_component.value
     
+    #預設
+    def fetch_neg_prompt(self):
+        self.neg_prompt_component.value = self.settings["neg_prompt"]
+        self.steps_component.value = self.settings["steps"]
+        self.height_component.value = self.settings["height"]
+        self.width_component.value = self.settings["width"]
+        return [self.neg_prompt_component.value,self.steps_component.value,self.height_component.value,self.width_component.value]
+    
     #隨機
-    def h_m_random_prompt(self,rs1,rs2,rs3,rs4):
-        self.prompt_component.value = "nsfw++++,"
-        chruse = False
-        btn1text = ""
-        btn2text = ""
-
-        if(self.locked1 == ""):
-            self.hm1btntext = ""
-            if(self.hm1prompt==""):
-                if(rs1 == False):
-                    ran = random.randint(0,100)
-                    if(ran > 20):
-                        self.hm1btntext = list(self.hm_config_1_component)[random.randint(0,len(self.hm_config_1_component)-1)]
-                        try:
-                            btn1text = self.localizations_component[self.hm1btntext]
-                        except:
-                            btn1text = self.hm1btntext
-                        self.prompt_component.value += self.hm_config_1_component[self.hm1btntext] + ","
-                        chruse = True
-
-            else:
-                self.prompt_component.value += self.hm1prompt
-        else:
-            self.prompt_component.value += self.hm1prompt
-            btn1text = "鎖定:"
-            try:
-                btn1text += self.localizations_component[self.hm1btntext]
-            except:
-                btn1text += self.hm1btntext
-
-        if(self.locked2 == ""):
-            self.hm2btntext = ""
-            if(self.hm2prompt==""):
-                if(rs2 == False):
-                    self.hm2btntext = list(self.hm_config_2_component)[random.randint(0,len(self.hm_config_2_component)-1)]
-                    try:
-                        btn2text = self.localizations_component[self.hm2btntext]
-                    except:
-                        btn2text = self.hm2btntext
-                    self.prompt_component.value += self.hm_config_2_component[self.hm2btntext] + ","
-                else:
-                    self.hm2btntext = list(self.hm_config_2_component)[random.randint(0,10)]
-                    try:
-                        btn2text = self.localizations_component[self.hm2btntext]
-                    except:
-                        btn2text = self.hm2btntext
-                    self.prompt_component.value += self.hm_config_2_component[self.hm2btntext] + ","
-            else:
-                self.prompt_component.value += self.hm2prompt
-        else:
-            self.prompt_component.value += self.hm2prompt
-            btn2text = "鎖定:"
-            try:
-                btn2text += self.localizations_component[self.hm2btntext]
-            except:
-                btn2text += self.hm2btntext        
-
-        if(self.hm3prompt==""):
-            if(rs4 == False):
-                rnd3 = random.randint(0,100)
-                if(rnd3 > 80):
-                    self.prompt_component.value += "indoor,"
-                elif(rnd3 > 60):
-                    self.prompt_component.value += "outdoor,"
-                elif(rnd3 > 20):
-                    self.prompt_component.value += self.hm_config_3_component[list(self.hm_config_3_component)[random.randint(0,len(self.hm_config_3_component)-1)]] + ","
-        else:
-            self.prompt_component.value += self.hm3prompt
-        
-        if(self.hm4prompt==""):
-            if(chruse):
-                if(rs3):
-                    self.prompt_component.value +=""
-                else:
-                    if(random.randint(0,100) > 50):
-                        self.prompt_component.value += self.hm_config_4_component[list(self.hm_config_4_component)[random.randint(0,len(self.hm_config_4_component)-1)]] + ","
-                    else:
-                        self.prompt_component.value += "nude+++,"
-        else:
-            self.prompt_component.value += self.hm4prompt
-
-        #AD用的  避免臉跑掉
-        self.faceprompt=""
-        if(self.hm5prompt==""):
-            #前25個後面太奇怪了
-            if(random.randint(0,100) > 50):
-                self.faceprompt = self.hm_config_5_component[list(self.hm_config_5_component)[random.randint(0,25)]] + ","
-                self.prompt_component.value += self.faceprompt
-        else:
-            self.prompt_component.value += self.hm5prompt
-            self.faceprompt = self.hm5prompt
-
-        #隨機 不使用 其他
-        if(self.hm6prompt==""):
-            self.prompt_component.value += ""
-            #self.prompt_component.value += self.hm_config_6_component[list(self.hm_config_6_component)[random.randint(0,2)]] + ","
-        else:
-            self.prompt_component.value += self.hm6prompt
-
+    def h_m_random_prompt(self):
+        self.prompt_component.value = ""
+        self.hm1btntext = list(self.hm_config_1_component)[random.randint(1,len(self.hm_config_1_component)-1)]
+        self.hm2btntext = list(self.hm_config_2_component)[random.randint(1,len(self.hm_config_2_component)-1)]
+        self.prompt_component.value += self.hm_config_1_component[self.hm1btntext] + ","
+        self.prompt_component.value += self.hm_config_2_component[self.hm2btntext] + ","
         self.prompt_component.value += self.allfuncprompt
 
-        return [self.prompt_component.value, btn1text, btn2text]
+        showbtn1 = ""
+        try:
+            showbtn1 = self.localizations_component[self.hm1btntext]
+        except:
+            showbtn1 = self.hm1btntext
+
+        showbtn2 = ""
+        try:
+            showbtn2 = self.localizations_component[self.hm2btntext]
+        except:
+            showbtn2 = self.hm2btntext
+
+        return [self.prompt_component.value, showbtn1, showbtn2, self.hm1btntext, self.hm2btntext]
     
     #自訂1
     def hm1_setting(self, selection, oldprompt):
@@ -979,28 +498,38 @@ class CharacterSelect(scripts.Script):
         if(self.hm1btntext != selection):
             self.locked1 = ""
             if(selection != "random"):
-                self.hm1prompt = self.hm_config_1_component[selection] + ","
+                self.hm1prompt = selection + ","
                 self.hm1btntext = selection
-                if(self.locked1 == "Y" ):
-                    btntext = "鎖定:"
-                try:
-                    btntext += self.localizations_component[self.hm1btntext]
-                except:
-                    btntext += self.hm1btntext
-            if(oldhmprompt!=""):
-                oldprompt = oldprompt.replace(oldhmprompt, self.hm1prompt)
-            else:
-                oldprompt += "," + self.hm1prompt
         else:
             if(selection != "random"):
-                self.hm1prompt = self.hm_config_1_component[selection] + ","
-            if(self.locked1 == "Y" ):
-                btntext = "鎖定:"
-            try:
-                btntext += self.localizations_component[self.hm1btntext]
-            except:
-                btntext += self.hm1btntext
-        return [oldprompt,btntext]
+                self.hm1prompt = selection + ","
+        
+        if(oldhmprompt!=""):
+            oldprompt = oldprompt.replace(", ",",").replace(oldhmprompt.replace(", ",","), self.hm1prompt)
+        else:
+            oldprompt += "," + self.hm1prompt
+        
+        value = "data:image/jpeg;base64,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"
+        index = 0
+        i=0
+        for item in self.hm_config_1_img:
+            i+=1
+            if(item.get(selection,'') != ''):
+                value = item.get(selection)
+                index = i
+
+        showbtn1 = ""
+        try:
+            showbtn1 = self.localizations_component[self.hm1btntext]
+        except:
+            showbtn1 = self.hm1btntext
+
+        #self.base64_to_pil(self.hm_config_1_img[0].get('hatsune miku'))
+        return [showbtn1, self.base64_to_pil(value), oldprompt, index]
+    
+    def hm1_setting2(self, selection, oldprompt):
+        return list(self.hm_config_1_component.keys())[selection]
+        
 
     #自訂2
     def hm2_setting(self, selection, oldprompt):
@@ -1014,145 +543,44 @@ class CharacterSelect(scripts.Script):
             self.locked2 = ""
             if(selection != "random"):
                 self.hm2prompt = self.hm_config_2_component[selection] + ","
-                self.hm2btntext = selection
-                try:
-                    btntext = self.localizations_component[self.hm2btntext]
-                except:
-                    btntext = self.hm2btntext
-            if(oldhmprompt!=""):
-                oldprompt = oldprompt.replace(oldhmprompt, self.hm2prompt)
-            else:
-                oldprompt += "," + self.hm2prompt
         else:
             if(selection != "random"):
                 self.hm2prompt = self.hm_config_2_component[selection] + ","
-            if(self.locked2 == "Y" ):
-                btntext = "鎖定:"
-            try:
-                btntext += self.localizations_component[self.hm2btntext]
-            except:
-                btntext += self.hm2btntext
-        return [oldprompt,btntext]
-
-    #自訂3
-    def hm3_setting(self, selection, oldprompt):
-        oldhmprompt = self.hm3prompt
-        self.hm3prompt = ""
-        if(selection != "random"):
-            self.hm3prompt = self.hm_config_3_component[selection] + ","
+            
+        self.hm2btntext = selection
         if(oldhmprompt!=""):
-            oldprompt = oldprompt.replace(oldhmprompt, self.hm3prompt)
+            oldprompt = oldprompt.replace(oldhmprompt, self.hm2prompt)
         else:
-            oldprompt += "," + self.hm3prompt
-        return oldprompt
+            oldprompt += "," + self.hm2prompt
+        
+        showbtn2 = ""
+        try:
+            showbtn2 = self.localizations_component[self.hm2btntext]
+        except:
+            showbtn2 = self.hm2btntext
 
-    #自訂4
-    def hm4_setting(self, selection, oldprompt):
-        oldhmprompt = self.hm4prompt
-        self.hm4prompt = ""
-        if(selection != "random"):
-            self.hm4prompt = self.hm_config_4_component[selection] + ","
-        if(oldhmprompt!=""):
-            oldprompt = oldprompt.replace(oldhmprompt, self.hm4prompt)
-        else:
-            oldprompt += "," + self.hm4prompt
-        return oldprompt
+        return [selection, showbtn2, oldprompt]
 
-    #自訂5
-    def hm5_setting(self, selection, oldprompt):
-        oldhmprompt = self.hm5prompt
-        self.hm5prompt = ""
-        if(selection != "random"):
-            self.hm5prompt = self.hm_config_5_component[selection] + ","
-        if(oldhmprompt!=""):
-            oldprompt = oldprompt.replace(oldhmprompt, self.hm5prompt)
-        else:
-            oldprompt += "," + self.hm5prompt
-        return oldprompt
-
-    #自訂6
-    def hm6_setting(self, selection, oldprompt):
-        oldhmprompt = self.hm6prompt
-        self.hm6prompt = ""
-        if(selection != "random"):
-            self.hm6prompt = self.hm_config_6_component[selection] + ","
-        if(oldhmprompt!=""):
-            oldprompt = oldprompt.replace(oldhmprompt, self.hm6prompt)
-        else:
-            oldprompt += "," + self.hm6prompt
-        return oldprompt
-    
-    
     #細節
-    def func_setting(self, oldprompt,fv1,fv2,fv3,fv4,fv5,fv6,fv7,fv8,fv9,fv10,fv11,fv12,fv13,fv14):
+    def func_setting(self, oldprompt,fv0,fv1,fv2,fv3,fv4):
         self.allfuncprompt = ""
-        oldprompt = oldprompt.replace("(Girl trembling with sexual climax)++,", "")
-        oldprompt = oldprompt.replace("<lyco:GoodHands-beta2:1.4>,", "")
-        oldprompt = oldprompt.replace("<lora:gape_cpt_v04.10:0.6>,", "")
-        oldprompt = oldprompt.replace("<lora:AGFIN:0.8>,AG,", "")
-        oldprompt = oldprompt.replace("<lora:BigBeautifulNipples_v1:1>,", "")
-        oldprompt = oldprompt.replace("thick thighs,", "")
-        oldprompt = oldprompt.replace("<lora:ChihunHentai_20230709225610-000004:1>,ChihunHentai,", "")
-        oldprompt = oldprompt.replace("<lora:Shinyskin-000018:0.6>,", "")
-        oldprompt = oldprompt.replace("<lora:ugly_bastard_v5.4a:1.5>,", "")
-        oldprompt = oldprompt.replace("OverallDetail++,", "")
-        oldprompt = oldprompt.replace("<lora:add_detail:0.2>,", "")
-        oldprompt = oldprompt.replace("(masterpiece,best quality:1.4),", "")
-        oldprompt = oldprompt.replace("RAW photo,realistic,", "")
-        oldprompt = oldprompt.replace("<lora:ponyv4_noob1_2_adamW-000017:0.8>,", "")
-
+        oldprompt = oldprompt.replace(self.settings["nsfw"], "")
+        oldprompt = oldprompt.replace(self.settings["more_detail"], "")
+        oldprompt = oldprompt.replace(self.settings["less_detail"], "")
+        oldprompt = oldprompt.replace(self.settings["quality"], "")
+        oldprompt = oldprompt.replace(self.settings["character_enhance"], "")
+        if(fv0):
+            self.allfuncprompt += self.settings["nsfw"]
         if(fv1):
-            self.allfuncprompt += "(Girl trembling with sexual climax)++,"
+            self.allfuncprompt += self.settings["more_detail"]
         if(fv2):
-            self.allfuncprompt += "<lyco:GoodHands-beta2:1.4>,"
+            self.allfuncprompt += self.settings["less_detail"]
         if(fv3):
-            self.allfuncprompt += "<lora:gape_cpt_v04.10:0.6>,"
+            self.allfuncprompt += self.settings["quality"]
         if(fv4):
-            self.allfuncprompt += "<lora:AGFIN:0.8>,AG,"
-        if(fv5):
-            self.allfuncprompt += "<lora:BigBeautifulNipples_v1:1>,"
-        if(fv6):
-            self.allfuncprompt += "thick thighs,"
-        if(fv7):
-            self.allfuncprompt += "<lora:ChihunHentai_20230709225610-000004:1>,ChihunHentai,"
-        if(fv8):
-            self.allfuncprompt += "<lora:Shinyskin-000018:0.6>,"
-        if(fv9):
-            self.allfuncprompt += "<lora:ugly_bastard_v5.4a:1.5>,"
-        if(fv10):
-            self.allfuncprompt += "OverallDetail++,"
-        if(fv11):
-            self.allfuncprompt += "<lora:add_detail:0.2>,"
-        if(fv12):
-            self.allfuncprompt += "(masterpiece,best quality:1.4),"
-        if(fv13):
-            self.allfuncprompt += "RAW photo,realistic,"
-        if(fv14):
-            self.allfuncprompt += "<lora:ponyv4_noob1_2_adamW-000017:0.8>,"
+            self.allfuncprompt += self.settings["character_enhance"]
         oldprompt += self.allfuncprompt
         return oldprompt
-    
-    #後製
-    def affunc_setting(self, oldprompt,afv1,afv2,afv3,afv4,afv5):
-        isuse = False
-        model1 = "None"
-        mprompt1 = ""
-        if(afv1 or afv2 or afv3 or afv4 or afv5):
-            isuse = True
-            model1 = "person_yolov8n-seg.pt"
-
-        mprompt1 += self.faceprompt
-        if(afv1):
-            mprompt1 += "<lora:Pussy_Lotte_v5n:0.8>,pussy"
-        if(afv2):
-            mprompt1 += "lora:AGFIN:0.8>,AG,"
-        if(afv3):
-            mprompt1 += "<lora:BigBeautifulNipples_v1:1>,"
-        if(afv4):
-            mprompt1 += "<lora:pussy:1.2>,pussy,"
-        if(afv5):
-            mprompt1 += "pubic hair,"
-        return [isuse,model1,mprompt1]
     
     def prompt_lock1(self):
         if(self.locked1 == ""):
@@ -1242,6 +670,56 @@ class CharacterSelect(scripts.Script):
         "Restart button"
         shared.state.interrupt()
         shared.state.need_restart = True
+
+    def base64_to_pil(self, base64_str):
+        """將 base64 字串轉換為 PIL Image"""
+        if "base64," in base64_str:  # 處理 data URL 格式
+            base64_str = base64_str.split("base64,")[1]
+    
+        image_data = base64.b64decode(base64_str)
+        image = Image.open(io.BytesIO(image_data))
+        return image
+    
+    def copy_json_file(self, source_path: str, destination_path: str, overwrite: bool = False):
+        """
+        複製JSON檔案並確認其格式正確
+        Parameters:
+        source_path (str): 來源JSON檔案的路徑
+        destination_path (str): 目標位置的路徑
+        overwrite (bool): 若為True則覆寫已存在的檔案，預設為False
+        Returns:
+        bool: 複製成功返回True，失敗返回False
+        """
+        try:
+            # 確認來源檔案存在
+            file = Path(os.path.join(CharacterSelect.BASEDIR, source_path))
+            if not file.exists():
+                print(f"錯誤：來源檔案 '{source_path}' 不存在")
+                return False
+            
+            # 檢查目標檔案是否已存在
+            dest = Path(os.path.join(CharacterSelect.BASEDIR, destination_path))
+            if dest.exists() and not overwrite:
+                return False
+            
+            # 讀取並驗證JSON格式
+            #with open(file, 'r', encoding='utf-8') as file:
+            #    json.load(file)  # 確認JSON格式正確
+            
+            # 建立目標資料夾（如果不存在）
+            #dest.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 複製檔案
+            shutil.copy2(os.path.join(CharacterSelect.BASEDIR, source_path), os.path.join(CharacterSelect.BASEDIR, destination_path))
+            print(f"成功：檔案已複製到 '{dest}'")
+            return True
+        
+        except json.JSONDecodeError:
+            print(f"錯誤：'{source_path}' 不是有效的JSON檔案")
+            return False
+        except Exception as e:
+            print(f"錯誤：複製過程發生問題 - {str(e)}")
+            return False
 
 
 
