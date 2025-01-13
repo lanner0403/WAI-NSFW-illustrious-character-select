@@ -16,6 +16,7 @@ from pprint import pprint
 from modules.ui import gr_show
 from collections import namedtuple
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 #  *********     versioning     *****
@@ -35,27 +36,6 @@ try:
 except:
     pass
 
-update_flag = "CharacterSelect_update_check"
-
-additional_config_source = "additional_components.json"
-additional_config_target = "additional_configs.json"
-presets_config_source = "preset_configuration.json"
-presets_config_target = "presets.json"
-
-file_path = scripts.basedir() # file_path is basedir
-scripts_path = os.path.join(file_path, "scripts")
-path_to_update_flag = os.path.join(scripts_path, update_flag)
-is_update_available = False
-if os.path.exists(path_to_update_flag):
-    is_update_available = True
-    source_path = os.path.join(file_path, presets_config_source)
-    target_path = os.path.join(file_path, presets_config_target)
-    if not os.path.exists(target_path):
-        shutil.move(source_path, target_path)
-        print(f"Created: {presets_config_target}")
-    else:
-        print(f"Not writing {presets_config_target}: config exists already")
-    os.remove(path_to_update_flag)
 
 class CharacterSelect(scripts.Script):
 
@@ -103,6 +83,12 @@ class CharacterSelect(scripts.Script):
         self.hm_config_2 = "custom_action.json"
         self.hm_config_7 = "wai_character.json"
         self.hm_config_8 = "wai_character2.json"
+        print(self.settings["wai_json_url1"])
+        if(self.chk_character(self.hm_config_7) == False):
+            self.download_json(self.settings["wai_json_url1"], os.path.join(CharacterSelect.BASEDIR, "wai_character.json"))
+
+        if(self.chk_character(self.hm_config_8) == False):
+            self.download_json(self.settings["wai_json_url2"], os.path.join(CharacterSelect.BASEDIR, "wai_character2.json"))
 
         self.localizations = "localizations\zh_TW.json"
 
@@ -428,7 +414,15 @@ class CharacterSelect(scripts.Script):
                 as_dict = json.load(f) 
         except FileNotFoundError as e:
             print(f"{e}\n{file} not found, check if it exists or if you have moved it.")
-        return as_dict 
+        return as_dict
+
+    def chk_character(self, path, open_mode='r'):
+        file = os.path.join(CharacterSelect.BASEDIR, path)
+        try:
+            with open(file, open_mode) as f:
+                return True
+        except FileNotFoundError as e:
+           return False
     
     def get_character(self, path, open_mode='r'):
         file = os.path.join(CharacterSelect.BASEDIR, path)
@@ -720,6 +714,45 @@ class CharacterSelect(scripts.Script):
         except Exception as e:
             print(f"錯誤：複製過程發生問題 - {str(e)}")
             return False
+        
+    def download_json(self, url, output_path, timeout:int=300):
+        """
+        從網址下載 JSON 檔案並儲存
+    
+        Parameters:
+        url (str): JSON 檔案的網址
+        output_path (str): 儲存檔案的路徑
+        headers (dict): 自訂的 HTTP headers
+        timeout (int): 請求超時時間（秒）
+    
+        Returns:
+        tuple: (下載的數據, 儲存路徑)
+        """
+        try:
+            # 設定預設 headers
+            default_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
 
+            # 發送請求
+            response = requests.get(url, headers=default_headers, timeout=timeout)
+            response.raise_for_status()  # 檢查是否請求成功
+        
+            # 嘗試解析 JSON
+            data = response.json()
+        
+            # 儲存檔案
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        except requests.exceptions.RequestException as e:
+            print(f"下載發生錯誤: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            print(f"JSON 解析錯誤: {str(e)}")
+            raise
+        except Exception as e:
+            print(f"發生未預期的錯誤: {str(e)}")
+            raise
 
 

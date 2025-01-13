@@ -1,4 +1,6 @@
 {
+    "wai_json_url1": "https://files.catbox.moe/mq7yf9.json",
+    "wai_json_url2": "https://files.catbox.moe/6holoy.json",
     "neg_prompt": "lowres, (worst quality, bad quality:1.2), bad anatomy, sketch, jpeg artifacts, signature, watermark, old, oldest, censored, bar_censor, simple background, extra head, conjoined,",
     "steps": 40,
     "height": 1024,
