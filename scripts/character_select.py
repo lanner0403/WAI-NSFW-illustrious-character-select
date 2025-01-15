@@ -83,14 +83,16 @@ class CharacterSelect(scripts.Script):
         self.hm_config_2 = "custom_action.json"
         self.hm_config_7 = "wai_character.json"
         self.hm_config_8 = "wai_character2.json"
-        print(self.settings["wai_json_url1"])
+        
         if(self.chk_character(self.hm_config_7) == False):
+            print("角色檔1:" + self.settings["wai_json_url1"] + " 下載中")
             self.download_json(self.settings["wai_json_url1"], os.path.join(CharacterSelect.BASEDIR, "wai_character.json"))
+            print("角色檔1 下載完成")
 
         if(self.chk_character(self.hm_config_8) == False):
+            print("角色檔2:" + self.settings["wai_json_url1"] + " 下載中")
             self.download_json(self.settings["wai_json_url2"], os.path.join(CharacterSelect.BASEDIR, "wai_character2.json"))
-
-        self.localizations = "localizations\zh_TW.json"
+            print("角色檔2 下載完成")
 
         self.hm_config_1_component = self.get_config2(self.hm_config_1)
         for item in self.get_character(self.hm_config_7):
@@ -105,7 +107,9 @@ class CharacterSelect(scripts.Script):
         for item in self.get_characterimg(self.hm_config_8):
             self.hm_config_1_img.append(item)
         
+        self.localizations = "zh_TW.json"
         self.localizations_component = self.get_config2(self.localizations)
+        self.relocalizations_component = {value: key for key, value in self.localizations_component.items()}
 
         self.hm1prompt = ""
         self.hm2prompt = ""
@@ -124,7 +128,7 @@ class CharacterSelect(scripts.Script):
         #隨機的face也要記下來 避免蓋掉
         self.faceprompt = ""
 
-        self.allfuncprompt = "nsfw++++,"
+        self.allfuncprompt = "nsfw,"
 
         #前一次的 cprompt
         self.oldcprompt=""
@@ -151,7 +155,7 @@ class CharacterSelect(scripts.Script):
 
         #h_m 人物
         CharacterSelect.txt2img_hm1_dropdown = gr.Dropdown(
-            label="人物",
+            label="人物搜尋",
             choices=list(self.hm_config_1_component.keys()),
             render = False,
             elem_id=f"{self.elm_prfx}_hm1_dd"
@@ -166,13 +170,20 @@ class CharacterSelect(scripts.Script):
             elem_id=f"{self.elm_prfx}_hm1_slider"
         )
 
+        CharacterSelect.txt2img_hmzht_dropdown = gr.Dropdown(
+            label="中文人物搜尋",
+            choices=list(self.localizations_component.keys()),
+            render = False,
+            elem_id=f"{self.elm_prfx}_hmzht_dd"
+        )
+
         CharacterSelect.txt2img_hm1_img = gr.Image(
             width = 100
         )
 
         #h_m 姿勢
         CharacterSelect.txt2img_hm2_dropdown = gr.Dropdown(
-            label="姿勢",
+            label="動作",
             choices=list(self.hm_config_2_component.keys()),
             render = False,
             elem_id=f"{self.elm_prfx}_hm2_dd"
@@ -252,6 +263,8 @@ class CharacterSelect(scripts.Script):
             with gr.Row(equal_height = True):
                 CharacterSelect.txt2img_hm1_dropdown.render() 
             with gr.Row(equal_height = True):
+                CharacterSelect.txt2img_hmzht_dropdown.render() 
+            with gr.Row(equal_height = True):
                 CharacterSelect.txt2img_hm1_slider.render() 
             with gr.Row(equal_height = True):
                 CharacterSelect.txt2img_hm1_img.render()
@@ -266,7 +279,7 @@ class CharacterSelect(scripts.Script):
                 CharacterSelect.func02_chk.render()
                 CharacterSelect.func03_chk.render() 
                 CharacterSelect.func04_chk.render()
-        with gr.Accordion(label="隨機[人物][姿勢]", open = True, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_lock_accordion"):
+        with gr.Accordion(label="隨機[人物][動作]", open = True, elem_id=f"{'txt2img' if self.is_txt2img else 'img2img'}_lock_accordion"):
             with gr.Row(equal_height = True):
                 CharacterSelect.txt2img_lock1_btn.render()
                 CharacterSelect.txt2img_lock2_btn.render()
@@ -324,7 +337,12 @@ class CharacterSelect(scripts.Script):
             CharacterSelect.txt2img_hm1_dropdown.change(
                 fn=self.hm1_setting,
                 inputs=[CharacterSelect.txt2img_hm1_dropdown,self.prompt_component],
-                outputs=[CharacterSelect.txt2img_lock1_btn, CharacterSelect.txt2img_hm1_img, self.prompt_component,CharacterSelect.txt2img_hm1_slider]
+                outputs=[CharacterSelect.txt2img_lock1_btn, CharacterSelect.txt2img_hm1_img, self.prompt_component,CharacterSelect.txt2img_hm1_slider,CharacterSelect.txt2img_hmzht_dropdown]
+            )
+            CharacterSelect.txt2img_hmzht_dropdown.change(
+                fn=self.hmzht_setting,
+                inputs=[CharacterSelect.txt2img_hmzht_dropdown],
+                outputs=[CharacterSelect.txt2img_hm1_dropdown]
             )
             CharacterSelect.txt2img_hm1_slider.release(
                 fn=self.hm1_setting2,
@@ -469,13 +487,13 @@ class CharacterSelect(scripts.Script):
 
         showbtn1 = ""
         try:
-            showbtn1 = self.localizations_component[self.hm1btntext]
+            showbtn1 = self.relocalizations_component[self.hm1btntext]
         except:
             showbtn1 = self.hm1btntext
 
         showbtn2 = ""
         try:
-            showbtn2 = self.localizations_component[self.hm2btntext]
+            showbtn2 = self.relocalizations_component[self.hm2btntext]
         except:
             showbtn2 = self.hm2btntext
 
@@ -514,16 +532,19 @@ class CharacterSelect(scripts.Script):
 
         showbtn1 = ""
         try:
-            showbtn1 = self.localizations_component[self.hm1btntext]
+            showbtn1 = self.relocalizations_component[self.hm1btntext]
         except:
             showbtn1 = self.hm1btntext
 
         #self.base64_to_pil(self.hm_config_1_img[0].get('hatsune miku'))
-        return [showbtn1, self.base64_to_pil(value), oldprompt, index]
+        return [showbtn1, self.base64_to_pil(value), oldprompt, index, self.relocalizations_component[self.hm1btntext]]
     
     def hm1_setting2(self, selection, oldprompt):
         return list(self.hm_config_1_component.keys())[selection]
-        
+
+    def hmzht_setting(self, selection, oldprompt):
+        return self.localizations_component[selection]
+     
 
     #自訂2
     def hm2_setting(self, selection, oldprompt):
@@ -549,7 +570,7 @@ class CharacterSelect(scripts.Script):
         
         showbtn2 = ""
         try:
-            showbtn2 = self.localizations_component[self.hm2btntext]
+            showbtn2 = self.relocalizations_component[self.hm2btntext]
         except:
             showbtn2 = self.hm2btntext
 
@@ -581,13 +602,13 @@ class CharacterSelect(scripts.Script):
             self.locked1 = "Y"
             self.hm1prompt = self.hm1btntext
             try:
-                btntext = "鎖定:" + self.localizations_component[self.hm1btntext]
+                btntext = "鎖定:" + self.relocalizations_component[self.hm1btntext]
             except:
                 btntext = "鎖定:" + self.hm1btntext
         else:
             self.locked1 = ""
             try:
-                btntext = self.localizations_component[self.hm1btntext]
+                btntext = self.relocalizations_component[self.hm1btntext]
             except:
                 btntext = self.hm1btntext
             self.hm1prompt = ""
@@ -598,7 +619,7 @@ class CharacterSelect(scripts.Script):
             self.locked2 = "Y"
             self.hm2prompt = self.hm2btntext
             try:
-                btntext = "鎖定:" + self.localizations_component[self.hm2btntext]
+                btntext = "鎖定:" + self.relocalizations_component[self.hm2btntext]
             except:
                 btntext = "鎖定:" + self.hm2btntext
         else:
