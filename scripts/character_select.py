@@ -90,7 +90,7 @@ class CharacterSelect(scripts.Script):
             #print("角色檔1 下載完成")
 
         if(self.chk_character(self.hm_config_8) == False):
-            print("角色檔2:" + self.settings["wai_json_url1"] + " 下載中")
+            print("角色檔2:" + self.settings["wai_json_url2"] + " 下載中")
             self.download_json(self.settings["wai_json_url2"], os.path.join(CharacterSelect.BASEDIR, "wai_character2.json"))
             print("角色檔2 下載完成")
 
@@ -128,7 +128,7 @@ class CharacterSelect(scripts.Script):
         #隨機的face也要記下來 避免蓋掉
         self.faceprompt = ""
 
-        self.allfuncprompt = "nsfw,"
+        self.allfuncprompt = "(nsfw:1.4),"
 
         #前一次的 cprompt
         self.oldcprompt=""
@@ -235,6 +235,17 @@ class CharacterSelect(scripts.Script):
             render = False,
             elem_id=f"{self.elm_prfx}_lock2_btn"
         )
+        #中文輸入框
+        CharacterSelect.txt2img_cprompt_txt = gr.Textbox(lines=4, placeholder="可輸入中文描述，透過AI擴充場景", label="AI 擴充 prompt", elem_id=f"{self.elm_prfx}_cprompt_txt")
+        CharacterSelect.txt2img_cprompt_btn = gr.Button(
+            value="AI擴充",
+            label="cpromptbtn",
+            variant="primary",
+            render = False,
+            elem_id=f"{self.elm_prfx}_cprompt_btn"
+        )
+
+        self.input_prompt = CharacterSelect.txt2img_cprompt_txt
     
     def fakeinit(self, *args, **kwargs):
         """
@@ -278,7 +289,12 @@ class CharacterSelect(scripts.Script):
                 CharacterSelect.func01_chk.render()
                 CharacterSelect.func02_chk.render()
                 CharacterSelect.func03_chk.render() 
-                CharacterSelect.func04_chk.render()    
+                CharacterSelect.func04_chk.render()
+        if(self.settings["ai"]):
+            with gr.Row(equal_height = True):
+                CharacterSelect.txt2img_cprompt_txt.render()
+                with gr.Row(equal_height = True):
+                    CharacterSelect.txt2img_cprompt_btn.render()    
 
     def after_component(self, component, **kwargs):
         if hasattr(component, "label") or hasattr(component, "elem_id"):
@@ -389,6 +405,11 @@ class CharacterSelect(scripts.Script):
                 fn=self.h_m_random_prompt,
                 outputs=[self.prompt_component, CharacterSelect.txt2img_hm1_dropdown,CharacterSelect.txt2img_hm2_dropdown]
             )
+            CharacterSelect.txt2img_cprompt_btn.click(
+                fn=self.cprompt_send,
+                inputs=[self.prompt_component, self.input_prompt],
+                outputs=self.prompt_component
+            )  
 
 
     def f_b_syncer(self):
@@ -635,14 +656,14 @@ class CharacterSelect(scripts.Script):
             Make a prompt for the following Subject:
             """)
         data = {
-                'model': 'impactframes/llama3_ifai_sd_prompt_mkr_q4km:latest',
+                'model': self.settings["model"],
                 'messages': [
                     {"role": "system", "content": prime_directive},
                     {"role": "user", "content": input_prompt}
                 ],  
             }
-        headers = kwargs.get('headers', {"Content-Type": "application/json"})
-        base_url = f'http://127.0.0.1:11434/v1/chat/completions'
+        headers = kwargs.get('headers', {"Content-Type": "application/json", "Authorization": "Bearer " + self.settings["api_key"]})
+        base_url = self.settings["base_url"]
         response = requests.post(base_url, headers=headers, json=data)
 
         if response.status_code == 200:
@@ -706,7 +727,7 @@ class CharacterSelect(scripts.Script):
             print(f"錯誤：複製過程發生問題 - {str(e)}")
             return False
         
-    def download_json(self, url, output_path, timeout:int=300):
+    def download_json(self, url, output_path, timeout:int=600):
         """
         從網址下載 JSON 檔案並儲存
     

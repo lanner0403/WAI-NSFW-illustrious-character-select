@@ -9,5 +9,9 @@
     "more_detail": "<lora:add-detail-xl:1>,",
     "less_detail": "<lora:add-detail-xl:0.2>,",
     "quality": "masterpiece,best quality,amazing quality,very aesthetic,absurdres,newest,huge filesize,<lora:spo_sdxl_10ep_4k-data_lora_webui:0.5>,",
-    "character_enhance": "<lora:ponyv4_noob1_2_adamW-000017:0.8>,"
+    "character_enhance": "<lora:ponyv4_noob1_2_adamW-000017:0.8>,",
+    "ai": false,
+    "base_url": "https://api.groq.com/openai/v1/chat/completions",
+    "model": "llama-3.3-70b-versatile",
+    "api_key":""
 }
