@@ -22,7 +22,7 @@ custom_settings.json -> 部分選項的自訂值
 
 1/19 更新AI功能、部分角色名稱修正、下載Timeout 延長至10分鐘
 
-AI 功能 支援 groq llama-3.3-70b-versatile (免費)
+AI 功能 支援 各家API ex: groq llama-3.3-70b-versatile (免費) 
 
 設定方式:
 
