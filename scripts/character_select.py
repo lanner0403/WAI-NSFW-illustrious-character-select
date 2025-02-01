@@ -82,28 +82,37 @@ class CharacterSelect(scripts.Script):
         self.hm_config_1 = "custom_character.json"
         self.hm_config_2 = "custom_action.json"
         #self.hm_config_7 = "wai_character.json"
-        self.hm_config_8 = "wai_character2.json"
+        #self.hm_config_8 = "wai_character2.json"
         
         #if(self.chk_character(self.hm_config_7) == False):
             #print("角色檔1:" + self.settings["wai_json_url1"] + " 下載中")
             #self.download_json(self.settings["wai_json_url1"], os.path.join(CharacterSelect.BASEDIR, "wai_character.json"))
             #print("角色檔1 下載完成")
 
-        if(self.chk_character(self.hm_config_8) == False):
-            print("角色檔2:" + self.settings["wai_json_url2"] + " 下載中")
-            self.download_json(self.settings["wai_json_url2"], os.path.join(CharacterSelect.BASEDIR, "wai_character2.json"))
-            print("角色檔2 下載完成")
+        #if(self.chk_character(self.hm_config_8) == False):
+        #    print("角色檔2:" + self.settings["wai_json_url2"] + " 下載中")
+        #    self.download_json(self.settings["wai_json_url2"], os.path.join(CharacterSelect.BASEDIR, "wai_character2.json"))
+        #    print("角色檔2 下載完成")
 
         self.hm_config_1_component = self.get_config2(self.hm_config_1)
         #for item in self.get_character(self.hm_config_7):
         #    self.hm_config_1_component.update({item : item})
-        for item in self.get_character(self.hm_config_8):
-            self.hm_config_1_component.update({item : item})
+        num_parts = 10
+        self.hm_config_1_img = []
+        for i in range(num_parts):            
+            for item in self.get_config2(f"output_{i+1}.json"):
+                self.hm_config_1_img.append(item)
+                #key = list(item.keys())[0]
+                #self.hm_config_1_component.update({key : key})
 
+        self.hm_config_1_img = sorted(self.hm_config_1_img, key=lambda x: list(x.keys())[0])
+        for item in self.hm_config_1_img:
+            key = list(item.keys())[0]
+            self.hm_config_1_component.update({key : key})
 
         self.hm_config_2_component = self.get_config2(self.hm_config_2)
 
-        self.hm_config_1_img = self.get_characterimg(self.hm_config_8)
+        #self.hm_config_1_img = self.get_characterimg(self.hm_config_8)
         #for item in self.get_characterimg(self.hm_config_8):
         #    self.hm_config_1_img.append(item)
         
