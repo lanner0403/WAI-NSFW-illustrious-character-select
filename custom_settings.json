@@ -1,0 +1,17 @@
+{
+    "wai_json_url1": "https://files.catbox.moe/mq7yf9.json",
+    "wai_json_url2": "https://files.catbox.moe/6holoy.json",
+    "neg_prompt": "lowres, (worst quality, bad quality:1.2), bad anatomy, sketch, jpeg artifacts, signature, watermark, old, oldest, censored, bar_censor, simple background, extra head, conjoined,",
+    "steps": 40,
+    "height": 1024,
+    "width": 768,
+    "nsfw": "(nsfw:1.4),",
+    "more_detail": "<lora:add-detail-xl:1>,",
+    "less_detail": "<lora:add-detail-xl:0.2>,",
+    "quality": "masterpiece,best quality,amazing quality,very aesthetic,absurdres,newest,huge filesize,<lora:spo_sdxl_10ep_4k-data_lora_webui:0.5>,",
+    "character_enhance": "<lora:ponyv4_noob1_2_adamW-000017:0.8>,",
+    "ai": true,
+    "base_url": "https://api.groq.com/openai/v1/chat/completions",
+    "model": "llama-3.3-70b-versatile",
+    "api_key":"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"
+}
