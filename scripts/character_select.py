@@ -350,7 +350,7 @@ class CharacterSelect(scripts.Script):
             )
             CharacterSelect.txt2img_neg_prompt_btn.click(
                 fn=self.fetch_neg_prompt,
-                outputs=[self.neg_prompt_component,self.steps_component,self.height_component,self.width_component]
+                outputs=[self.neg_prompt_component,self.steps_component,self.height_component,self.width_component,self.func00_chk,self.func01_chk,self.func03_chk,self.func04_chk]
             )
             #hm
             CharacterSelect.txt2img_hm1_dropdown.change(
@@ -498,7 +498,7 @@ class CharacterSelect(scripts.Script):
         self.steps_component.value = self.settings["steps"]
         self.height_component.value = self.settings["height"]
         self.width_component.value = self.settings["width"]
-        return [self.neg_prompt_component.value,self.steps_component.value,self.height_component.value,self.width_component.value]
+        return [self.neg_prompt_component.value,self.steps_component.value,self.height_component.value,self.width_component.value,True,True,True,True]
     
     #隨機
     def h_m_random_prompt(self):
@@ -658,7 +658,8 @@ class CharacterSelect(scripts.Script):
             - Always reply on the same line and no more than 100 words long. 
             - Do not enumerate or enunciate components.
             - Create creative additional information in the response.    
-            - Response in English.                                                    
+            - Response in English.
+            - Response prompt only.                                                
             The followin is an illustartive example for you to see how to construct a prompt your prompts should follow this format but always coherent to the subject worldbuilding or setting and cosider the elemnts relationship.
             Example:
             Demon Hunter,Cyber City,A Demon Hunter,standing,lone figure,glow eyes,deep purple light,cybernetic exoskeleton,sleek,metallic,glowing blue accents,energy weapons,Fighting Demon,grotesque creature,twisted metal,glowing red eyes,sharp claws,towering structures,shrouded haze,shimmering energy,                            
@@ -668,7 +669,7 @@ class CharacterSelect(scripts.Script):
                 'model': self.settings["model"],
                 'messages': [
                     {"role": "system", "content": prime_directive},
-                    {"role": "user", "content": input_prompt}
+                    {"role": "user", "content": input_prompt + ";Response in English"}
                 ],  
             }
         headers = kwargs.get('headers', {"Content-Type": "application/json", "Authorization": "Bearer " + self.settings["api_key"]})
