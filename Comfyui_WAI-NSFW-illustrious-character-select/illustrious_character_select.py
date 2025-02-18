@@ -68,7 +68,7 @@ def llm_send_request(input_prompt, llm_config):
     
 class llm_prompt_node:
     '''
-    llm_prompt_gen_node
+    llm_prompt_node
     
     An AI based prpmpte gen node
     
@@ -102,7 +102,8 @@ class llm_prompt_node:
     FUNCTION = "llm_prompt_node_ex"
     CATEGORY = cat
     
-    def llm_prompt_node_ex(self, prompt):
+    def llm_prompt_node_ex(self, prompt, random_action_seed):
+        _ = random_action_seed
         return (llm_send_request(prompt, wai_llm_config),)   
     
 class illustrious_character_select:
