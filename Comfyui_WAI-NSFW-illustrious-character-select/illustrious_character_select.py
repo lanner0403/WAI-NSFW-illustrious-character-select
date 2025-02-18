@@ -24,31 +24,40 @@ wai_illustrious_character_select_files = [
     {'name': 'wai_settings', 'file_path': os.path.join(json_folder, 'wai_settings.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/settings.json'},    
 ]
 
-# NOT a good idea to put API key in node ....
+prime_directive = textwrap.dedent("""\
+    Act as a prompt maker with the following guidelines:               
+    - Break keywords by commas.
+    - Provide high-quality, non-verbose, coherent, brief, concise, and not superfluous prompts.
+    - Focus solely on the visual elements of the picture; avoid art commentaries or intentions.
+    - Construct the prompt with the component format:
+    1. Start with the subject and keyword description.
+    2. Follow with motion keyword description.
+    3. Follow with scene keyword description.
+    4. Finish with background and keyword description.
+    - Limit yourself to no more than 20 keywords per component  
+    - Include all the keywords from the user's request verbatim as the main subject of the response.
+    - Be varied and creative.
+    - Always reply on the same line and no more than 100 words long. 
+    - Do not enumerate or enunciate components.
+    - Create creative additional information in the response.    
+    - Response in English.
+    - Response prompt only.                                                
+    The followin is an illustartive example for you to see how to construct a prompt your prompts should follow this format but always coherent to the subject worldbuilding or setting and cosider the elemnts relationship.
+    Example:
+    Demon Hunter,Cyber City,A Demon Hunter,standing,lone figure,glow eyes,deep purple light,cybernetic exoskeleton,sleek,metallic,glowing blue accents,energy weapons,Fighting Demon,grotesque creature,twisted metal,glowing red eyes,sharp claws,towering structures,shrouded haze,shimmering energy,                            
+    Make a prompt for the following Subject:
+    """)
+
+def decode_response(response):
+    if response.status_code == 200:
+        ret = response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
+        print(f'{cat}Response:{ret}')
+        return ret
+    else:
+        print(f"{cat}:Error: Request failed with status code {response.status_code}")
+        return []
+
 def llm_send_request(input_prompt, llm_config):
-    prime_directive = textwrap.dedent("""\
-        Act as a prompt maker with the following guidelines:               
-        - Break keywords by commas.
-        - Provide high-quality, non-verbose, coherent, brief, concise, and not superfluous prompts.
-        - Focus solely on the visual elements of the picture; avoid art commentaries or intentions.
-        - Construct the prompt with the component format:
-        1. Start with the subject and keyword description.
-        2. Follow with motion keyword description.
-        3. Follow with scene keyword description.
-        4. Finish with background and keyword description.
-        - Limit yourself to no more than 20 keywords per component  
-        - Include all the keywords from the user's request verbatim as the main subject of the response.
-        - Be varied and creative.
-        - Always reply on the same line and no more than 100 words long. 
-        - Do not enumerate or enunciate components.
-        - Create creative additional information in the response.    
-        - Response in English.
-        - Response prompt only.                                                
-        The followin is an illustartive example for you to see how to construct a prompt your prompts should follow this format but always coherent to the subject worldbuilding or setting and cosider the elemnts relationship.
-        Example:
-        Demon Hunter,Cyber City,A Demon Hunter,standing,lone figure,glow eyes,deep purple light,cybernetic exoskeleton,sleek,metallic,glowing blue accents,energy weapons,Fighting Demon,grotesque creature,twisted metal,glowing red eyes,sharp claws,towering structures,shrouded haze,shimmering energy,                            
-        Make a prompt for the following Subject:
-        """)
     data = {
             'model': llm_config["model"],
             'messages': [
@@ -57,14 +66,7 @@ def llm_send_request(input_prompt, llm_config):
             ],  
         }
     response = requests.post(llm_config["base_url"], headers={"Content-Type": "application/json", "Authorization": "Bearer " + llm_config["api_key"]}, json=data)
-
-    if response.status_code == 200:
-        ret = response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
-        print(f'{cat}Response:{ret}')
-        return ret
-    else:
-        print(f"{cat}:Error: Request failed with status code {response.status_code}")
-        return []
+    return decode_response(response)
     
 class llm_prompt_node:
     '''
@@ -105,6 +107,70 @@ class llm_prompt_node:
     def llm_prompt_node_ex(self, prompt, random_action_seed):
         _ = random_action_seed
         return (llm_send_request(prompt, wai_llm_config),)   
+
+def llm_send_local_request(input_prompt, server):
+    data = {
+            "temperature": 0.6,
+            "n_predict": 128,
+            "cache_prompt": True,
+            "stop": ["<|im_end|>"],
+            'messages': [
+                {"role": "system", "content": prime_directive},
+                {"role": "user", "content": input_prompt + ";Response in English"}
+            ],  
+        }
+    response = requests.post(server, headers={"Content-Type": "application/json"}, json=data)
+
+    return decode_response(response)
+
+class mira_local_llm_prompt_gen:
+    '''
+    local_llm_prompt_gen
+    
+    An AI based prpmpte gen node for local LLM
+    
+    Server args:
+    llama-server.exe -ngl 40 --no-mmap -m "F:\LLM\Meta-Llama\GGUF_Versatile-Llama-3-8B.Q8_0\Versatile-Llama-3-8B.Q8_0.gguf"
+    
+    Input:
+    server             - Your llama_cpp server addr. E.g. http://127.0.0.1:8080/chat/completions
+    prompt             - Contents that you need AI to generate
+    random_action_seed - MUST connect to `Seed Generator`
+    
+    Output:
+    ai_prompt          - Prompts generate by AI
+    '''
+    
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "server": ("STRING", {
+                    "default": "http://127.0.0.1:8080/chat/completions", 
+                    "display": "input" ,
+                    "multiline": False
+                }),
+                "prompt": ("STRING", {
+                    "display": "input" ,
+                    "multiline": True
+                }),     
+                "random_action_seed": ("INT", {
+                    "default": 1024, 
+                    "min": 0, 
+                    "max": 0xffffffffffffffff,
+                    "display": "input"
+                }),
+            }
+        }
+        
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("ai_prompt",)
+    FUNCTION = "local_llm_prompt_gen_ex"
+    CATEGORY = cat
+    
+    def local_llm_prompt_gen_ex(self, server, prompt, random_action_seed):
+        _ = random_action_seed
+        return (llm_send_local_request(prompt, server),)   
     
 class illustrious_character_select:
     '''

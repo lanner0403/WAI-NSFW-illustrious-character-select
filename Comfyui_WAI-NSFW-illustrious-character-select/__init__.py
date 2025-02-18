@@ -1,4 +1,4 @@
-from .illustrious_character_select import llm_prompt_node, illustrious_character_select
+from .illustrious_character_select import llm_prompt_node, illustrious_character_select, mira_local_llm_prompt_gen
 
 def __init__(self):
     pass
@@ -8,11 +8,13 @@ def __init__(self):
 NODE_CLASS_MAPPINGS = {
     "llm_prompt_node"              : llm_prompt_node,
     "illustrious_character_select" : illustrious_character_select,
+    "mira_local_llm_prompt_gen"    : mira_local_llm_prompt_gen,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {    
     "llm_prompt_node"              : "llm_prompt",
+    "mira_local_llm_prompt_gen"    : "Local AI Prompt Generator (llama.cpp)",
     "illustrious_character_select" : "illustrious_character_select",
 }
 
