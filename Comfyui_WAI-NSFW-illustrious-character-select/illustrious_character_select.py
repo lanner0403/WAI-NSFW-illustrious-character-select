@@ -52,9 +52,13 @@ def decode_response(response):
     if response.status_code == 200:
         ret = response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
         print(f'{cat}Response:{ret}')
+        # Renmove <think> for DeepSeek
+        if str(ret).__contains__('</think>'):
+            ret = str(ret).split('</think>')[-1].strip()
+            print(f'{cat}Trimed response:{ret}')        
         return ret
     else:
-        print(f"{cat}:Error: Request failed with status code {response.status_code}")
+        print(f"Error: Request failed with status code {response.status_code}")
         return []
 
 def llm_send_request(input_prompt, llm_config):
@@ -108,10 +112,10 @@ class llm_prompt_node:
         _ = random_action_seed
         return (llm_send_request(prompt, wai_llm_config),)   
 
-def llm_send_local_request(input_prompt, server):
+def llm_send_local_request(input_prompt, server, temperature=0.5, n_predict=512):
     data = {
-            "temperature": 0.6,
-            "n_predict": 128,
+            "temperature": temperature,
+            "n_predict": n_predict,
             "cache_prompt": True,
             "stop": ["<|im_end|>"],
             'messages': [
@@ -132,8 +136,12 @@ class mira_local_llm_prompt_gen:
     Server args:
     llama-server.exe -ngl 40 --no-mmap -m "F:\LLM\Meta-Llama\GGUF_Versatile-Llama-3-8B.Q8_0\Versatile-Llama-3-8B.Q8_0.gguf"
     
+    For DeepSeek, you may need a larger n_predict 2048~ and lower temperature 0.4~, for llama3.3 256~512 may enough.
+    
     Input:
     server             - Your llama_cpp server addr. E.g. http://127.0.0.1:8080/chat/completions
+    temperature        - A parameter that influences the language model's output, determining whether the output is more random and creative or more predictable.
+    n_predict          - Controls the number of tokens the model generates in response to the input prompt
     prompt             - Contents that you need AI to generate
     random_action_seed - MUST connect to `Seed Generator`
     
@@ -149,6 +157,18 @@ class mira_local_llm_prompt_gen:
                     "default": "http://127.0.0.1:8080/chat/completions", 
                     "display": "input" ,
                     "multiline": False
+                }),
+                "temperature": ("FLOAT", {
+                    "min": 0.1,
+                    "max": 1,
+                    "step": 0.05,
+                    "default": 0.5
+                }),
+                "n_predict": ("INT", {
+                    "min": 128,
+                    "max": 4096,
+                    "step": 128,
+                    "default": 256
                 }),
                 "prompt": ("STRING", {
                     "display": "input" ,
@@ -168,9 +188,9 @@ class mira_local_llm_prompt_gen:
     FUNCTION = "local_llm_prompt_gen_ex"
     CATEGORY = cat
     
-    def local_llm_prompt_gen_ex(self, server, prompt, random_action_seed):
+    def local_llm_prompt_gen_ex(self, server, temperature, n_predict, prompt, random_action_seed):
         _ = random_action_seed
-        return (llm_send_local_request(prompt, server),)   
+        return (llm_send_local_request(prompt, server, temperature=temperature, n_predict=n_predict),)   
     
 class illustrious_character_select:
     '''
