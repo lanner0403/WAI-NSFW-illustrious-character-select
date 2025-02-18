@@ -68,7 +68,16 @@ def llm_send_request(input_prompt, llm_config):
     
 class llm_prompt_node:
     '''
-    llm_prompt_node
+    llm_prompt_gen_node
+    
+    An AI based prpmpte gen node
+    
+    Input:
+    prompt             - Contents that you need AI to generate
+    random_action_seed - MUST connect to `Seed Generator`
+    
+    Output:
+    ai_prompt          - Prompts generate by AI
     '''
     
     @classmethod
@@ -79,16 +88,22 @@ class llm_prompt_node:
                     "display": "input" ,
                     "multiline": True
                 }),     
+                "random_action_seed": ("INT", {
+                    "default": 1024, 
+                    "min": 0, 
+                    "max": 0xffffffffffffffff,
+                    "display": "input"
+                }),
             }
         }
         
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("prompt",)
+    RETURN_NAMES = ("ai_prompt",)
     FUNCTION = "llm_prompt_node_ex"
     CATEGORY = cat
     
     def llm_prompt_node_ex(self, prompt):
-        return (llm_send_request(prompt, wai_llm_config),)
+        return (llm_send_request(prompt, wai_llm_config),)   
     
 class illustrious_character_select:
     '''
