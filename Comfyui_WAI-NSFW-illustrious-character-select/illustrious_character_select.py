@@ -257,7 +257,6 @@ class illustrious_character_select:
                     "display": "input"
                 }),
             },
-            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
                         
     RETURN_TYPES = ("STRING","STRING", "IMAGE",)
@@ -266,7 +265,7 @@ class illustrious_character_select:
     CATEGORY = cat
     OUTPUT_NODE = True
     
-    def illustrious_character_select_ex(self, character, action, random_action_seed, custom_prompt = '', prompt=None, extra_pnginfo=None):
+    def illustrious_character_select_ex(self, character, action, random_action_seed, custom_prompt = ''):
         chara = ''
         rnd_character = ''
         act = ''
@@ -281,16 +280,15 @@ class illustrious_character_select:
         if 'random' == action:
             index = random_action_seed % len(action_list)
             rnd_action = action_list[index]
-            act += ", " + action_dict[rnd_action]
+            act = f'{action_dict[rnd_action]}, '
         elif 'none' == action:
             act = ''
         else:
-            act += ", " + action_dict[action]
+            act = f'{action_dict[action]}, '
         
-        prompt = f'{chara}, {act}, {custom_prompt}'
+        prompt = f'{chara}, {act}{custom_prompt}'
         info = f'Character:{rnd_character}[{chara}]\nAction:{act}\nCustom Promot:{custom_prompt}'
         
-        wai_image.get(chara)
         if wai_image.keys().__contains__(chara):
             print(f'{cat}: Found Thumb Image:{chara}')
             thumb_image = self.update_image(wai_image.get(chara))
