@@ -1,7 +1,12 @@
 import os
 import textwrap
+import numpy as np
 import requests
 import json
+import base64
+from io import BytesIO
+from PIL import Image
+import torch
 
 # CATEGORY
 cat = "Mira/CS"
@@ -14,14 +19,23 @@ character_dict = {}
 action_list = ''
 action_dict = {}
 wai_llm_config = {}
+wai_image = {}
 
 wai_illustrious_character_select_files = [
-    # images
-    # {'name': 'wai_json_file1', 'file_path': os.path.join(json_folder, 'wai_mq7yf9.json'), 'url': 'https://files.catbox.moe/mq7yf9.json'}, 
-    # {'name': 'wai_json_file2', 'file_path': os.path.join(json_folder, 'wai_6holoy.json'), 'url': 'https://files.catbox.moe/6holoy.json'},  
     {'name': 'wai_action', 'file_path': os.path.join(json_folder, 'wai_action.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/action.json'}, 
     {'name': 'wai_zh_tw', 'file_path': os.path.join(json_folder, 'wai_zh_tw.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/zh_TW.json'},
-    {'name': 'wai_settings', 'file_path': os.path.join(json_folder, 'wai_settings.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/settings.json'},    
+    {'name': 'wai_settings', 'file_path': os.path.join(json_folder, 'wai_settings.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/settings.json'},
+    # images
+    {'name': 'wai_output_1', 'file_path': os.path.join(json_folder, 'wai_output_1.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_1.json'},
+    {'name': 'wai_output_2', 'file_path': os.path.join(json_folder, 'wai_output_2.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_2.json'},
+    {'name': 'wai_output_3', 'file_path': os.path.join(json_folder, 'wai_output_3.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_3.json'},
+    {'name': 'wai_output_4', 'file_path': os.path.join(json_folder, 'wai_output_4.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_4.json'},
+    {'name': 'wai_output_5', 'file_path': os.path.join(json_folder, 'wai_output_5.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_5.json'},
+    {'name': 'wai_output_6', 'file_path': os.path.join(json_folder, 'wai_output_6.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_6.json'},
+    {'name': 'wai_output_7', 'file_path': os.path.join(json_folder, 'wai_output_7.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_7.json'},
+    {'name': 'wai_output_8', 'file_path': os.path.join(json_folder, 'wai_output_8.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_8.json'},
+    {'name': 'wai_output_9', 'file_path': os.path.join(json_folder, 'wai_output_9.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_9.json'},
+    {'name': 'wai_output_10', 'file_path': os.path.join(json_folder, 'wai_output_10.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_10.json'},
 ]
 
 prime_directive = textwrap.dedent("""\
@@ -51,11 +65,11 @@ prime_directive = textwrap.dedent("""\
 def decode_response(response):
     if response.status_code == 200:
         ret = response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
-        print(f'{cat}Response:{ret}')
+        print(f'{cat}: Response:{ret}')
         # Renmove <think> for DeepSeek
         if str(ret).__contains__('</think>'):
             ret = str(ret).split('</think>')[-1].strip()
-            print(f'{cat}Trimed response:{ret}')        
+            print(f'{cat}: Trimed response:{ret}')        
         return ret
     else:
         print(f"Error: Request failed with status code {response.status_code}")
@@ -72,9 +86,9 @@ def llm_send_request(input_prompt, llm_config):
     response = requests.post(llm_config["base_url"], headers={"Content-Type": "application/json", "Authorization": "Bearer " + llm_config["api_key"]}, json=data)
     return decode_response(response)
     
-class llm_prompt_node:
+class llm_prompt_gen:
     '''
-    llm_prompt_node
+    llm_prompt_gen
     
     An AI based prpmpte gen node
     
@@ -130,21 +144,21 @@ def llm_send_local_request(input_prompt, server, temperature=0.5, n_predict=512)
 class mira_local_llm_prompt_gen:
     '''
     local_llm_prompt_gen
-    
+
     An AI based prpmpte gen node for local LLM
-    
+
     Server args:
-    llama-server.exe -ngl 40 --no-mmap -m "F:\LLM\Meta-Llama\GGUF_Versatile-Llama-3-8B.Q8_0\Versatile-Llama-3-8B.Q8_0.gguf"
-    
+    llama-server.exe -ngl 40 --no-mmap -m "F:\\LLM\\Meta-Llama\\GGUF_Versatile-Llama-3-8B.Q8_0\\Versatile-Llama-3-8B.Q8_0.gguf"
+
     For DeepSeek, you may need a larger n_predict 2048~ and lower temperature 0.4~, for llama3.3 256~512 may enough.
-    
+
     Input:
     server             - Your llama_cpp server addr. E.g. http://127.0.0.1:8080/chat/completions
     temperature        - A parameter that influences the language model's output, determining whether the output is more random and creative or more predictable.
     n_predict          - Controls the number of tokens the model generates in response to the input prompt
     prompt             - Contents that you need AI to generate
     random_action_seed - MUST connect to `Seed Generator`
-    
+
     Output:
     ai_prompt          - Prompts generate by AI
     '''
@@ -190,7 +204,7 @@ class mira_local_llm_prompt_gen:
     
     def local_llm_prompt_gen_ex(self, server, temperature, n_predict, prompt, random_action_seed):
         _ = random_action_seed
-        return (llm_send_local_request(prompt, server, temperature=temperature, n_predict=n_predict),)   
+        return (llm_send_local_request(prompt, server, temperature=temperature, n_predict=n_predict),)     
     
 class illustrious_character_select:
     '''
@@ -207,11 +221,24 @@ class illustrious_character_select:
     Outputs:
     prompt                - Final prompt
     info                  - Debug info
-    '''                
+    thumb_image           - Thumb image from Json file, you can use it for preview...
+    '''         
+    
+    def EncodeImage(self, src_image):
+        img = np.array(src_image).astype(np.float32) / 255.0
+        img = torch.from_numpy(img)[None,]
+        return img
+
+    def update_image(self, base64_data):
+        #print(base64_data)
+        base64_str = base64_data.split("base64,")[1]
+        image_data = base64.b64decode(base64_str)
+        image_bytes = BytesIO(image_data)
+        image = Image.open(image_bytes)
+        return self.EncodeImage(image)
+           
     @classmethod
     def INPUT_TYPES(s):
-        global action_list
-        global character_list
         
         return {
             "optional": {
@@ -230,14 +257,16 @@ class illustrious_character_select:
                     "display": "input"
                 }),
             },
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
-                
-    RETURN_TYPES = ("STRING","STRING",)
-    RETURN_NAMES = ("prompt", "info")
+                        
+    RETURN_TYPES = ("STRING","STRING", "IMAGE",)
+    RETURN_NAMES = ("prompt", "info", "thumb_image",)    
     FUNCTION = "illustrious_character_select_ex"
     CATEGORY = cat
+    OUTPUT_NODE = True
     
-    def illustrious_character_select_ex(self, character, action, random_action_seed, custom_prompt = ''):
+    def illustrious_character_select_ex(self, character, action, random_action_seed, custom_prompt = '', prompt=None, extra_pnginfo=None):
         chara = ''
         rnd_character = ''
         act = ''
@@ -260,34 +289,70 @@ class illustrious_character_select:
         
         prompt = f'{chara}, {act}, {custom_prompt}'
         info = f'Character:{rnd_character}[{chara}]\nAction:{act}\nCustom Promot:{custom_prompt}'
-        return (prompt, info,)
+        
+        wai_image.get(chara)
+        if wai_image.keys().__contains__(chara):
+            print(f'{cat}: Found Thumb Image:{chara}')
+            thumb_image = self.update_image(wai_image.get(chara))
+            results = list()
+            results.append({
+                "filename": 'tmp.png',
+                "subfolder": json_folder,
+                "type": 'output'
+            })
+            return (prompt, info, thumb_image,)
+        
+        return (prompt, info, None,)
 
 def download_file(url, file_path):
     response = requests.get(url)
     response.raise_for_status() 
+    print('{}:Downloading... {}'.format(cat, url))
     with open(file_path, 'wb') as file:
         file.write(response.content)
 
-# download file
-for item in wai_illustrious_character_select_files:
-    name = item['name']
-    file_path = item['file_path']
-    url = item['url']
+def main():
+    global character_list
+    global character_dict
+    global action_list
+    global action_dict
+    global wai_llm_config
+    global wai_image
     
-    if not os.path.exists(file_path):
-        print('{}:Downloading... {}'.format(cat, url))
-        download_file(url, file_path)
+    wai_image_temp = {}
+    # download file
+    for item in wai_illustrious_character_select_files:
+        name = item['name']
+        file_path = item['file_path']
+        url = item['url']
         
-    with open(file_path, 'r', encoding='utf-8') as file:
-        print('{}:Loading... {}'.format(cat, url))
-        if 'wai_action' == name:
-            action_dict.update(json.load(file))
-        if 'wai_zh_tw' == name:            
-            character_dict.update(json.load(file))
-        if 'wai_settings' == name:
-            wai_llm_config.update(json.load(file))
-    
-action_list = list(action_dict.keys())
-action_list.insert(0, "none")
-character_list = list(character_dict.keys())    
-character_list.insert(0, "random")
+        if not os.path.exists(file_path):
+            download_file(url, file_path)
+
+        with open(file_path, 'r', encoding='utf-8') as file:
+            # print('{}:Loading... {}'.format(cat, url))
+            if 'wai_action' == name:
+                action_dict.update(json.load(file))
+            elif 'wai_zh_tw' == name:            
+                character_dict.update(json.load(file))
+            elif 'wai_settings' == name:
+                wai_llm_config.update(json.load(file))       
+            elif name.startswith('wai_output_'):
+                # [ {} ] .......
+                # Got some s..special data format from the source
+                # Luckily we have a strong enough cpu for that.
+                # Maybe, we could rewrite the data format in the future.
+                wai_image_temp = json.load(file)
+                
+                for item in wai_image_temp:
+                    key = list(item.keys())[0]
+                    value = list(item.values())[0]
+                    wai_image.update({key : value})                     
+            
+    action_list = list(action_dict.keys())
+    action_list.insert(0, "none")
+    character_list = list(character_dict.keys())    
+    character_list.insert(0, "random")
+
+#if __name__ == '__main__':
+main()
