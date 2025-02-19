@@ -85,6 +85,11 @@ def llm_send_request(input_prompt, llm_config):
         }
     response = requests.post(llm_config["base_url"], headers={"Content-Type": "application/json", "Authorization": "Bearer " + llm_config["api_key"]}, json=data)
     return decode_response(response)
+
+def EncodeImage(src_image):
+    img = np.array(src_image).astype(np.float32) / 255.0
+    img = torch.from_numpy(img)[None,]
+    return img
     
 class llm_prompt_gen:
     '''
@@ -223,19 +228,6 @@ class illustrious_character_select:
     info                  - Debug info
     thumb_image           - Thumb image from Json file, you can use it for preview...
     '''         
-    
-    def EncodeImage(self, src_image):
-        img = np.array(src_image).astype(np.float32) / 255.0
-        img = torch.from_numpy(img)[None,]
-        return img
-
-    def update_image(self, base64_data):
-        #print(base64_data)
-        base64_str = base64_data.split("base64,")[1]
-        image_data = base64.b64decode(base64_str)
-        image_bytes = BytesIO(image_data)
-        image = Image.open(image_bytes)
-        return self.EncodeImage(image)
            
     @classmethod
     def INPUT_TYPES(s):
@@ -291,13 +283,7 @@ class illustrious_character_select:
         
         if wai_image.keys().__contains__(chara):
             print(f'{cat}: Found Thumb Image:{chara}')
-            thumb_image = self.update_image(wai_image.get(chara))
-            results = list()
-            results.append({
-                "filename": 'tmp.png',
-                "subfolder": json_folder,
-                "type": 'output'
-            })
+            thumb_image = wai_image.get(chara)
             return (prompt, info, thumb_image,)
         
         return (prompt, info, None,)
@@ -308,6 +294,13 @@ def download_file(url, file_path):
     print('{}:Downloading... {}'.format(cat, url))
     with open(file_path, 'wb') as file:
         file.write(response.content)
+
+def dase64_to_image(base64_data):
+    base64_str = base64_data.split("base64,")[1]
+    image_data = base64.b64decode(base64_str)
+    image_bytes = BytesIO(image_data)
+    image = Image.open(image_bytes)    
+    return EncodeImage(image)
 
 def main():
     global character_list
@@ -326,13 +319,17 @@ def main():
         
         if not os.path.exists(file_path):
             download_file(url, file_path)
-
+            
         with open(file_path, 'r', encoding='utf-8') as file:
             # print('{}:Loading... {}'.format(cat, url))
             if 'wai_action' == name:
                 action_dict.update(json.load(file))
+                action_list = list(action_dict.keys())
+                action_list.insert(0, "none")
             elif 'wai_zh_tw' == name:            
                 character_dict.update(json.load(file))
+                character_list = list(character_dict.keys())    
+                character_list.insert(0, "random")
             elif 'wai_settings' == name:
                 wai_llm_config.update(json.load(file))       
             elif name.startswith('wai_output_'):
@@ -345,12 +342,7 @@ def main():
                 for item in wai_image_temp:
                     key = list(item.keys())[0]
                     value = list(item.values())[0]
-                    wai_image.update({key : value})                     
-            
-    action_list = list(action_dict.keys())
-    action_list.insert(0, "none")
-    character_list = list(character_dict.keys())    
-    character_list.insert(0, "random")
+                    wai_image.update({key : dase64_to_image(value)})   
 
 #if __name__ == '__main__':
 main()
