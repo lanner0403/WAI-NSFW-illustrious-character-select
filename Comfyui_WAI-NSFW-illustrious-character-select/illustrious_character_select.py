@@ -19,12 +19,15 @@ character_dict = {}
 action_list = ''
 action_dict = {}
 wai_llm_config = {}
-wai_image = {}
+wai_image_list = []
+wai_image_dict = {}
 
 wai_illustrious_character_select_files = [
     {'name': 'wai_action', 'file_path': os.path.join(json_folder, 'wai_action.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/action.json'}, 
     {'name': 'wai_zh_tw', 'file_path': os.path.join(json_folder, 'wai_zh_tw.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/zh_TW.json'},
     {'name': 'wai_settings', 'file_path': os.path.join(json_folder, 'wai_settings.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/settings.json'},
+    # local cache
+    {'name': 'wai_image', 'file_path': os.path.join(json_folder, 'wai_image.json'), 'url': 'local'},
     # images
     {'name': 'wai_output_1', 'file_path': os.path.join(json_folder, 'wai_output_1.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_1.json'},
     {'name': 'wai_output_2', 'file_path': os.path.join(json_folder, 'wai_output_2.json'), 'url': 'https://raw.githubusercontent.com/lanner0403/WAI-NSFW-illustrious-character-select/refs/heads/main/output_2.json'},
@@ -65,14 +68,14 @@ prime_directive = textwrap.dedent("""\
 def decode_response(response):
     if response.status_code == 200:
         ret = response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
-        print(f'{cat}: Response:{ret}')
+        print(f'[{cat}]:Response:{ret}')
         # Renmove <think> for DeepSeek
         if str(ret).__contains__('</think>'):
             ret = str(ret).split('</think>')[-1].strip()
-            print(f'{cat}: Trimed response:{ret}')        
+            print(f'[{cat}]:Trimed response:{ret}')
         return ret
     else:
-        print(f"Error: Request failed with status code {response.status_code}")
+        print(f"[{cat}]:Error: Request failed with status code {response.status_code}")
         return []
 
 def llm_send_request(input_prompt, llm_config):
@@ -218,6 +221,7 @@ class illustrious_character_select:
     Inputs:
     character             - Character
     action                - Action
+    optimise_tags         - Fix duplicate or error tags in Character
     random_action_seed    - MUST connect to `Seed Generator`
     
     Optional Input:
@@ -228,7 +232,13 @@ class illustrious_character_select:
     info                  - Debug info
     thumb_image           - Thumb image from Json file, you can use it for preview...
     '''         
-           
+
+    def remove_duplicates(self, input_string):
+        items = input_string.split(',')    
+        unique_items = list(dict.fromkeys(item.strip() for item in items))    
+        result = ', '.join(unique_items)
+        return result
+                   
     @classmethod
     def INPUT_TYPES(s):
         
@@ -242,6 +252,7 @@ class illustrious_character_select:
             "required": {
                 "character": (character_list, ),
                 "action": (action_list, ),
+                "optimise_tags": ("BOOLEAN", {"default": True}),
                 "random_action_seed": ("INT", {
                     "default": 1024, 
                     "min": 0, 
@@ -252,19 +263,21 @@ class illustrious_character_select:
         }
                         
     RETURN_TYPES = ("STRING","STRING", "IMAGE",)
-    RETURN_NAMES = ("prompt", "info", "thumb_image",)    
+    RETURN_NAMES = ("prompt", "info", "thumb_image",)
     FUNCTION = "illustrious_character_select_ex"
     CATEGORY = cat
-    OUTPUT_NODE = True
     
-    def illustrious_character_select_ex(self, character, action, random_action_seed, custom_prompt = ''):
+    def illustrious_character_select_ex(self, character, action, optimise_tags, random_action_seed, custom_prompt = ''):
         chara = ''
         rnd_character = ''
         act = ''
+        rnd_action = ''
         
         if 'random' == character:
             index = random_action_seed % len(character_list)
             rnd_character = character_list[index]
+            if 'random' == rnd_character:
+                rnd_character = character_list[index+1]
         else:
             rnd_character = character
         chara = character_dict[rnd_character]
@@ -274,26 +287,32 @@ class illustrious_character_select:
             rnd_action = action_list[index]
             act = f'{action_dict[rnd_action]}, '
         elif 'none' == action:
+            rnd_action = action
             act = ''
         else:
-            act = f'{action_dict[action]}, '
+            rnd_action = action
+            act = f'{action_dict[rnd_action]}, '               
+                    
+        thumb_image = EncodeImage(Image.new('RGB', (128, 128), (128, 128, 128)))        
+        if wai_image_dict.keys().__contains__(chara):
+            thumb_image = dase64_to_image(wai_image_dict.get(chara))
         
-        prompt = f'{chara}, {act}{custom_prompt}'
-        info = f'Character:{rnd_character}[{chara}]\nAction:{act}\nCustom Promot:{custom_prompt}'
-        
-        if wai_image.keys().__contains__(chara):
-            print(f'{cat}: Found Thumb Image:{chara}')
-            thumb_image = wai_image.get(chara)
-            return (prompt, info, thumb_image,)
-        
-        return (prompt, info, None,)
+        opt_chara = chara
+        if optimise_tags:
+            opt_chara = self.remove_duplicates(chara.replace('_', ' ').replace(':', ' '))
+            opt_chara = opt_chara.replace('(', '\\(').replace(')', '\\)')
+            
+        prompt = f'{opt_chara}, {act}{custom_prompt}'
+        info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:{custom_prompt}'
+                
+        return (prompt, info, thumb_image, )
 
-def download_file(url, file_path):
+def download_file(url, file_path):   
     response = requests.get(url)
     response.raise_for_status() 
-    print('{}:Downloading... {}'.format(cat, url))
+    print('[{}]:Downloading... {}'.format(cat, url))
     with open(file_path, 'wb') as file:
-        file.write(response.content)
+        file.write(response.content)        
 
 def dase64_to_image(base64_data):
     base64_str = base64_data.split("base64,")[1]
@@ -308,20 +327,28 @@ def main():
     global action_list
     global action_dict
     global wai_llm_config
-    global wai_image
+    global wai_image_dict
     
-    wai_image_temp = {}
+    wai_image_cache = False
+    wai_image_dict_temp = {}
+    
     # download file
     for item in wai_illustrious_character_select_files:
         name = item['name']
         file_path = item['file_path']
-        url = item['url']
-        
-        if not os.path.exists(file_path):
-            download_file(url, file_path)
+        url = item['url']        
             
+        if 'local' == url and 'wai_image' == name:
+            if os.path.exists(file_path):
+                wai_image_cache = True   
+            else:
+                continue
+        else:
+            if not os.path.exists(file_path):
+                download_file(url, file_path)
+
         with open(file_path, 'r', encoding='utf-8') as file:
-            # print('{}:Loading... {}'.format(cat, url))
+            # print('[{}]:Loading... {}'.format(cat, url))
             if 'wai_action' == name:
                 action_dict.update(json.load(file))
                 action_list = list(action_dict.keys())
@@ -332,17 +359,28 @@ def main():
                 character_list.insert(0, "random")
             elif 'wai_settings' == name:
                 wai_llm_config.update(json.load(file))       
-            elif name.startswith('wai_output_'):
+            elif 'wai_image' == name and wai_image_cache:
+                print('[{}]:Loading wai_image.json, delete this file for update.'.format(cat))
+                wai_image_dict = json.load(file)
+            elif name.startswith('wai_output_') and not wai_image_cache:
                 # [ {} ] .......
                 # Got some s..special data format from the source
                 # Luckily we have a strong enough cpu for that.
-                # Maybe, we could rewrite the data format in the future.
-                wai_image_temp = json.load(file)
-                
-                for item in wai_image_temp:
+                wai_image_dict_temp = json.load(file)
+                for item in wai_image_dict_temp:
                     key = list(item.keys())[0]
                     value = list(item.values())[0]
-                    wai_image.update({key : dase64_to_image(value)})   
-
+                    wai_image_dict.update({key : value}) 
+        
+        if wai_image_cache:
+            break
+        
+    # Create cache
+    # Loading time 4.3s to 0.1s
+    if not wai_image_cache:
+        print('[{}]:Creating wai_image.json ...'.format(cat))
+        with open(os.path.join(json_folder, 'wai_image.json'), 'w', encoding='utf-8') as file:
+            json.dump(wai_image_dict, file, ensure_ascii=False, indent=4)
+            
 #if __name__ == '__main__':
 main()
