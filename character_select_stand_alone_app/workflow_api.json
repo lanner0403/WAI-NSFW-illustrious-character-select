@@ -1,0 +1,229 @@
+{
+  "2": {
+    "inputs": {
+      "text": [
+        "14",
+        0
+      ],
+      "clip": [
+        "11",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "text": [
+        "15",
+        0
+      ],
+      "clip": [
+        "11",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "4": {
+    "inputs": {
+      "seed": [
+        "16",
+        0
+      ],
+      "steps": [
+        "13",
+        0
+      ],
+      "cfg": [
+        "13",
+        1
+      ],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "11",
+        0
+      ],
+      "positive": [
+        "2",
+        0
+      ],
+      "negative": [
+        "3",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": [
+        "12",
+        0
+      ],
+      "height": [
+        "12",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "6": {
+    "inputs": {
+      "samples": [
+        "4",
+        0
+      ],
+      "vae": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "7": {
+    "inputs": {
+      "vae_name": "xlVAEC_c91.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "10": {
+    "inputs": {
+      "filename": "%time_%seed_by_shimabo",
+      "path": "%date",
+      "extension": "png",
+      "steps": [
+        "13",
+        0
+      ],
+      "cfg": [
+        "13",
+        1
+      ],
+      "modelname": [
+        "11",
+        3
+      ],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "positive": [
+        "14",
+        0
+      ],
+      "negative": [
+        "15",
+        0
+      ],
+      "seed_value": [
+        "16",
+        0
+      ],
+      "width": [
+        "12",
+        0
+      ],
+      "height": [
+        "12",
+        1
+      ],
+      "lossless_webp": true,
+      "quality_jpeg_or_webp": 100,
+      "optimize_png": false,
+      "counter": 0,
+      "denoise": 1,
+      "clip_skip": -2,
+      "time_format": "%Y-%m-%d-%H%M%S",
+      "save_workflow_as_json": false,
+      "embed_workflow_in_png": true,
+      "images": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "Image Saver",
+    "_meta": {
+      "title": "Image Saver"
+    }
+  },
+  "11": {
+    "inputs": {
+      "ckpt_name": "waiNSFWIllustrious_v10.safetensors"
+    },
+    "class_type": "Checkpoint Loader with Name (Image Saver)",
+    "_meta": {
+      "title": "Checkpoint Loader with Name (Image Saver)"
+    }
+  },
+  "12": {
+    "inputs": {
+      "Width": 1024,
+      "Height": 1360
+    },
+    "class_type": "CanvasCreatorBasic",
+    "_meta": {
+      "title": "Create Canvas H/W only"
+    }
+  },
+  "13": {
+    "inputs": {
+      "steps": 30,
+      "cfg": 7
+    },
+    "class_type": "StepsAndCfg",
+    "_meta": {
+      "title": "Steps & Cfg"
+    }
+  },
+  "14": {
+    "inputs": {
+      "text": "masterpiece, best quality,amazing quality, solo,white background,standing,miqo'te, petite, ahoge, whiskers, slit pupils, hair between eyes, long hair, (4 fingers:1.35), claws, glowing eyes, ear fluff, two-tone fur, (light blue body fur:1.1), white cheek fur, cyan hair, orange eyes, white fur on cat tail front, "
+    },
+    "class_type": "TextBox",
+    "_meta": {
+      "title": "Text Box"
+    }
+  },
+  "15": {
+    "inputs": {
+      "text": "bad quality,worst quality,worst detail,sketch, censor"
+    },
+    "class_type": "TextBox",
+    "_meta": {
+      "title": "Text Box"
+    }
+  },
+  "16": {
+    "inputs": {
+      "int": 1024
+    },
+    "class_type": "int _O",
+    "_meta": {
+      "title": "int _O"
+    }
+  }
+}

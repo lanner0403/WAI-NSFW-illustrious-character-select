@@ -6,13 +6,16 @@ import json
 import base64
 from io import BytesIO
 from PIL import Image
-import torch
+import random
+import gradio as gr
+from comfyui import run_comfyui
+from webui import run_webui
 
 # CATEGORY
-cat = "Mira/CS"
+cat = "WAI_Character_Select"
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-json_folder = os.path.join(current_dir, "json")
+json_folder = os.path.join(current_dir, 'json')
 
 character_list = ''
 character_dict = {}
@@ -72,11 +75,12 @@ def decode_response(response):
         # Renmove <think> for DeepSeek
         if str(ret).__contains__('</think>'):
             ret = str(ret).split('</think>')[-1].strip()
-            print(f'[{cat}]:Trimed response:{ret}')
+            print(f'[{cat}]:Trimed response:{ret}')        
         return ret
     else:
         print(f"[{cat}]:Error: Request failed with status code {response.status_code}")
         return []
+
 
 def llm_send_request(input_prompt, llm_config):
     data = {
@@ -88,51 +92,6 @@ def llm_send_request(input_prompt, llm_config):
         }
     response = requests.post(llm_config["base_url"], headers={"Content-Type": "application/json", "Authorization": "Bearer " + llm_config["api_key"]}, json=data, timeout=30)
     return decode_response(response)
-
-def EncodeImage(src_image):
-    img = np.array(src_image).astype(np.float32) / 255.0
-    img = torch.from_numpy(img)[None,]
-    return img
-    
-class llm_prompt_gen:
-    '''
-    llm_prompt_gen
-    
-    An AI based prpmpte gen node
-    
-    Input:
-    prompt             - Contents that you need AI to generate
-    random_action_seed - MUST connect to `Seed Generator`
-    
-    Output:
-    ai_prompt          - Prompts generate by AI
-    '''
-    
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": ("STRING", {
-                    "display": "input" ,
-                    "multiline": True
-                }),     
-                "random_action_seed": ("INT", {
-                    "default": 1024, 
-                    "min": 0, 
-                    "max": 0xffffffffffffffff,
-                    "display": "input"
-                }),
-            }
-        }
-        
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("ai_prompt",)
-    FUNCTION = "llm_prompt_node_ex"
-    CATEGORY = cat
-    
-    def llm_prompt_node_ex(self, prompt, random_action_seed):
-        _ = random_action_seed
-        return (llm_send_request(prompt, wai_llm_config),)   
 
 def llm_send_local_request(input_prompt, server, temperature=0.5, n_predict=512):
     data = {
@@ -146,166 +105,7 @@ def llm_send_local_request(input_prompt, server, temperature=0.5, n_predict=512)
             ],  
         }
     response = requests.post(server, headers={"Content-Type": "application/json"}, json=data)
-
     return decode_response(response)
-
-class mira_local_llm_prompt_gen:
-    '''
-    local_llm_prompt_gen
-
-    An AI based prpmpte gen node for local LLM
-
-    Server args:
-    llama-server.exe -ngl 40 --no-mmap -m "F:\\LLM\\Meta-Llama\\GGUF_Versatile-Llama-3-8B.Q8_0\\Versatile-Llama-3-8B.Q8_0.gguf"
-
-    For DeepSeek, you may need a larger n_predict 2048~ and lower temperature 0.4~, for llama3.3 256~512 may enough.
-
-    Input:
-    server             - Your llama_cpp server addr. E.g. http://127.0.0.1:8080/chat/completions
-    temperature        - A parameter that influences the language model's output, determining whether the output is more random and creative or more predictable.
-    n_predict          - Controls the number of tokens the model generates in response to the input prompt
-    prompt             - Contents that you need AI to generate
-    random_action_seed - MUST connect to `Seed Generator`
-
-    Output:
-    ai_prompt          - Prompts generate by AI
-    '''
-    
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "server": ("STRING", {
-                    "default": "http://127.0.0.1:8080/chat/completions", 
-                    "display": "input" ,
-                    "multiline": False
-                }),
-                "temperature": ("FLOAT", {
-                    "min": 0.1,
-                    "max": 1,
-                    "step": 0.05,
-                    "default": 0.5
-                }),
-                "n_predict": ("INT", {
-                    "min": 128,
-                    "max": 4096,
-                    "step": 128,
-                    "default": 256
-                }),
-                "prompt": ("STRING", {
-                    "display": "input" ,
-                    "multiline": True
-                }),     
-                "random_action_seed": ("INT", {
-                    "default": 1024, 
-                    "min": 0, 
-                    "max": 0xffffffffffffffff,
-                    "display": "input"
-                }),
-            }
-        }
-        
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("ai_prompt",)
-    FUNCTION = "local_llm_prompt_gen_ex"
-    CATEGORY = cat
-    
-    def local_llm_prompt_gen_ex(self, server, temperature, n_predict, prompt, random_action_seed):
-        _ = random_action_seed
-        return (llm_send_local_request(prompt, server, temperature=temperature, n_predict=n_predict),)     
-    
-class illustrious_character_select:
-    '''
-    illustrious_character_select
-    
-    Inputs:
-    character             - Character
-    action                - Action
-    optimise_tags         - Fix duplicate or error tags in Character
-    random_action_seed    - MUST connect to `Seed Generator`
-    
-    Optional Input:
-    custom_prompt         - An optional custom prompt for final output. E.g. AI Generated ptompt`
-        
-    Outputs:
-    prompt                - Final prompt
-    info                  - Debug info
-    thumb_image           - Thumb image from Json file, you can use it for preview...
-    '''         
-
-    def remove_duplicates(self, input_string):
-        items = input_string.split(',')    
-        unique_items = list(dict.fromkeys(item.strip() for item in items))    
-        result = ', '.join(unique_items)
-        return result
-                   
-    @classmethod
-    def INPUT_TYPES(s):
-        
-        return {
-            "optional": {
-                "custom_prompt": ("STRING", {
-                    "display": "input" ,
-                    "multiline": True
-                }),      
-            },
-            "required": {
-                "character": (character_list, ),
-                "action": (action_list, ),
-                "optimise_tags": ("BOOLEAN", {"default": True}),
-                "random_action_seed": ("INT", {
-                    "default": 1024, 
-                    "min": 0, 
-                    "max": 0xffffffffffffffff,
-                    "display": "input"
-                }),
-            },
-        }
-                        
-    RETURN_TYPES = ("STRING","STRING", "IMAGE",)
-    RETURN_NAMES = ("prompt", "info", "thumb_image",)
-    FUNCTION = "illustrious_character_select_ex"
-    CATEGORY = cat
-    
-    def illustrious_character_select_ex(self, character, action, optimise_tags, random_action_seed, custom_prompt = ''):
-        chara = ''
-        rnd_character = ''
-        act = ''
-        rnd_action = ''
-        
-        if 'random' == character:
-            index = random_action_seed % len(character_list)
-            rnd_character = character_list[index]
-            if 'random' == rnd_character:
-                rnd_character = character_list[index+1]
-        else:
-            rnd_character = character
-        chara = character_dict[rnd_character]
-            
-        if 'random' == action:
-            index = random_action_seed % len(action_list)
-            rnd_action = action_list[index]
-            act = f'{action_dict[rnd_action]}, '
-        elif 'none' == action:
-            rnd_action = action
-            act = ''
-        else:
-            rnd_action = action
-            act = f'{action_dict[rnd_action]}, '               
-                    
-        thumb_image = EncodeImage(Image.new('RGB', (128, 128), (128, 128, 128)))        
-        if wai_image_dict.keys().__contains__(chara):
-            thumb_image = dase64_to_image(wai_image_dict.get(chara))
-        
-        opt_chara = chara
-        if optimise_tags:
-            opt_chara = self.remove_duplicates(chara.replace('_', ' ').replace(':', ' '))
-            opt_chara = opt_chara.replace('(', '\\(').replace(')', '\\)')
-            
-        prompt = f'{opt_chara}, {act}{custom_prompt}'
-        info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:{custom_prompt}'
-                
-        return (prompt, info, thumb_image, )
 
 def download_file(url, file_path):   
     response = requests.get(url)
@@ -319,9 +119,9 @@ def dase64_to_image(base64_data):
     image_data = base64.b64decode(base64_str)
     image_bytes = BytesIO(image_data)
     image = Image.open(image_bytes)    
-    return EncodeImage(image)
+    return image
 
-def main():
+def download_jsons():
     global character_list
     global character_dict
     global action_list
@@ -382,5 +182,172 @@ def main():
         with open(os.path.join(json_folder, 'wai_image.json'), 'w', encoding='utf-8') as file:
             json.dump(wai_image_dict, file, ensure_ascii=False, indent=4)
             
-#if __name__ == '__main__':
-main()
+            
+def remove_duplicates(input_string):
+    items = input_string.split(',')    
+    unique_items = list(dict.fromkeys(item.strip() for item in items))    
+    result = ', '.join(unique_items)
+    return result
+
+
+def illustrious_character_select_ex(character = 'random', action = 'none', optimise_tags = True, random_action_seed = 1, custom_prompt = ''):
+    chara = ''
+    rnd_character = ''
+    act = ''
+    rnd_action = ''
+    
+    if 'random' == character:
+        index = random_action_seed % len(character_list)
+        rnd_character = character_list[index]
+        if 'random' == rnd_character:
+            rnd_character = character_list[index+1]
+    else:
+        rnd_character = character
+    chara = character_dict[rnd_character]
+        
+    if 'random' == action:
+        index = random_action_seed % len(action_list)
+        rnd_action = action_list[index]
+        act = f'{action_dict[rnd_action]}, '
+    elif 'none' == action:
+        rnd_action = action
+        act = ''
+    else:
+        rnd_action = action
+        act = f'{action_dict[rnd_action]}, '               
+                
+    thumb_image = Image.new('RGB', (128, 128), (128, 128, 128))
+    if wai_image_dict.keys().__contains__(chara):
+        thumb_image = dase64_to_image(wai_image_dict.get(chara))
+    
+    opt_chara = chara
+    if optimise_tags:
+        opt_chara = remove_duplicates(chara.replace('_', ' ').replace(':', ' '))
+        opt_chara = opt_chara.replace('(', '\\(').replace(')', '\\)')
+        
+    prompt = f'{opt_chara}{act}{custom_prompt},'
+    info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:[{custom_prompt}]'
+            
+    print(f'\n{prompt}\n')
+    print(f'Info:{info}')
+    return prompt, info, thumb_image
+
+def parse_api_image_data(api_image_data):
+    try:
+        cfg, steps, width, height = map(float, api_image_data.split(','))
+        return float(cfg), int(steps), int(width), int(height)
+    except ValueError:
+        return 7.0, 30, 1024, 1360
+    
+def stream_chat(character='random', action='none', random_seed=-1, custom_prompt='', 
+                ai_interface='none', ai_prompt='make character furry', ai_local_addr='http://127.0.0.1:8080/chat/completions', ai_local_temp=0.3, ai_local_n_predict=1536, 
+                api_interface='none', api_addr='127.0.0.1:7890', api_prompt='', api_neg_prompt='', api_image_data='7.0,36,1024,1360'
+            ) -> tuple[str, str, Image.Image, Image.Image]:
+    seed = random_seed
+    if random_seed == -1:
+        seed = random.randint(0, 4294967295)            
+    
+    ai_text = ''
+    if 'Remote' == ai_interface:
+        ai_text = llm_send_request(ai_prompt, wai_llm_config)
+    elif 'Local' == ai_interface:
+        ai_text = llm_send_local_request(ai_prompt, ai_local_addr, ai_local_temp, ai_local_n_predict)
+
+    if ai_text.__contains__('.'):
+        ai_text = ai_text.replace('.','')
+        
+    prompt, info, thumb_image = illustrious_character_select_ex(character = character, action = action, random_action_seed=seed, custom_prompt=custom_prompt)    
+    final_prompt = f'{prompt},\n{ai_text},\n{api_prompt}'
+    final_info = f'{info}\nAI Prompt:[{ai_text}]'
+    
+    api_image = Image.new('RGB', (128, 128), (39, 39, 42))    
+    cfg, steps, width, height = parse_api_image_data(api_image_data)
+    if 'ComfyUI' == api_interface:        
+        image_data_list = run_comfyui(server_address=api_addr, positive_prompt=final_prompt, negative_prompt=api_neg_prompt, random_seed=seed, cfg=cfg, steps=steps, width=width, height=height)
+        image_data_bytes = bytes(image_data_list)  
+        api_image = Image.open(BytesIO(image_data_bytes))    
+    elif 'WebUI' == api_interface:
+        api_image = run_webui(server_address=api_addr, positive_prompt=final_prompt, negative_prompt=api_neg_prompt, random_seed=seed, cfg=cfg, steps=steps, width=width, height=height)  
+            
+    return final_prompt, final_info, thumb_image, api_image
+        
+if __name__ == '__main__':
+    download_jsons()
+    
+    print(f'[{cat}]:Starting...')
+    
+    with gr.Blocks() as ui:
+        with gr.Row():
+            with gr.Column():               
+                character = gr.Dropdown(
+                    choices=character_list,
+                    label="Character list",
+                    value="random",
+                    allow_custom_value = False,
+                )
+
+                action = gr.Dropdown(
+                    choices=action_list,
+                    label="Action list",
+                    value="none",
+                    allow_custom_value = False,    
+                )
+    
+                random_seed = gr.Slider(minimum=-1,
+                    maximum=4294967295,
+                    step=1,
+                    value=-1,
+                    label="Seed",
+                )
+                custom_prompt = gr.Textbox(value='', label="Custom Prompt")                
+                run_button = gr.Button("Create Prompt")
+
+                # AI Prompt Generator
+                ai_interface = gr.Dropdown(
+                    choices=['none', 'Remote', 'Local'],
+                    label="AI Prompt Generator",
+                    value="none",
+                    allow_custom_value = False,
+                )
+                ai_prompt = gr.Textbox(label="AI Prompt")
+                ai_local_addr = gr.Textbox(value='http://127.0.0.1:8080/chat/completions', label="Local Llama.cpp server")   
+                ai_local_temp = gr.Slider(minimum=0.1,
+                    maximum=1,
+                    step=0.05,
+                    value=0.3,
+                    label="Local AI Temperature",
+                )
+                ai_local_n_predict = gr.Slider(minimum=128,
+                    maximum=4096,
+                    step=128,
+                    value=1536,
+                    label="Local AI n_predict",
+                )             
+
+                gr.HTML('')
+                # API Image Generator
+                api_interface = gr.Dropdown(
+                    choices=['none', 'ComfyUI', 'WebUI'],
+                    label="Local Image Generator API",
+                    value="none",
+                    allow_custom_value = False,
+                )
+                api_addr = gr.Textbox(value='127.0.0.1:7860', label="Local Image Generator IP Address:Port")
+                api_prompt = gr.Textbox(value='masterpiece, best quality, amazing quality', label="Positive Prompt")   
+                api_neg_prompt = gr.Textbox(value='bad quality,worst quality,worst detail,sketch,censor,3d', label="Negative Prompt")                   
+                api_image_data = gr.Textbox(value='7.0,30,1024,1360', label="CFG,Step,Width,Height")   
+                
+            with gr.Column():
+                api_image = gr.Image(type="pil", label="Local Image Generator")               
+                output_prompt = gr.Textbox(label="Prompt")
+                output_info = gr.Textbox(label="Information")
+                thumb_image = gr.Image(type="pil", label="Thumb Image")                
+        
+        run_button.click(fn=stream_chat, 
+                         inputs=[character, action, random_seed, custom_prompt, 
+                                 ai_interface, ai_prompt, ai_local_addr, ai_local_temp, ai_local_n_predict, 
+                                 api_interface, api_addr, api_prompt, api_neg_prompt, api_image_data
+                                 ], 
+                         outputs=[output_prompt, output_info, thumb_image, api_image])
+        
+    ui.launch()
