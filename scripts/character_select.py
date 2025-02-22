@@ -140,7 +140,7 @@ class CharacterSelect(scripts.Script):
         #隨機的face也要記下來 避免蓋掉
         self.faceprompt = ""
 
-        self.allfuncprompt = "(nsfw:1.4),"
+        self.allfuncprompt = ""
 
         #前一次的 cprompt
         self.oldcprompt=""
@@ -221,29 +221,28 @@ class CharacterSelect(scripts.Script):
             label="NSFW",
             render = False,
             container = False,
-            value = True,
             elem_id=f"{self.elm_prfx}_func00_chk"
         )
         CharacterSelect.func01_chk =gr.Checkbox(
-            label="more detail",
+            label="增加細節",
             render = False,
             container = False,
             elem_id=f"{self.elm_prfx}_func01_chk"
         )
         CharacterSelect.func02_chk =gr.Checkbox(
-            label="less detail",
+            label="減少細節",
             render = False,
             container = False,
             elem_id=f"{self.elm_prfx}_func02_chk"
         )
         CharacterSelect.func03_chk = gr.Checkbox(
-            label="quality",
+            label="品質加強",
             render = False,
             container = False,
             elem_id=f"{self.elm_prfx}_func03_chk"
         )
         CharacterSelect.func04_chk =gr.Checkbox(
-            label="character enhance",
+            label="人物加強",
             render = False,
             container = False,
             elem_id=f"{self.elm_prfx}_func04_chk"
