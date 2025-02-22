@@ -14,7 +14,7 @@ cat = "Mira/CS"
 current_dir = os.path.dirname(os.path.abspath(__file__))
 json_folder = os.path.join(current_dir, "json")
 
-character_list = ''
+character_list_cn = ''
 character_dict = {}
 action_list = ''
 action_dict = {}
@@ -59,7 +59,7 @@ prime_directive = textwrap.dedent("""\
     - Create creative additional information in the response.    
     - Response in English.
     - Response prompt only.                                                
-    The followin is an illustartive example for you to see how to construct a prompt your prompts should follow this format but always coherent to the subject worldbuilding or setting and cosider the elemnts relationship.
+    The following is an illustrative example for you to see how to construct a prompt your prompts should follow this format but always coherent to the subject worldbuilding or setting and consider the elements relationship.
     Example:
     Demon Hunter,Cyber City,A Demon Hunter,standing,lone figure,glow eyes,deep purple light,cybernetic exoskeleton,sleek,metallic,glowing blue accents,energy weapons,Fighting Demon,grotesque creature,twisted metal,glowing red eyes,sharp claws,towering structures,shrouded haze,shimmering energy,                            
     Make a prompt for the following Subject:
@@ -72,22 +72,17 @@ def decode_response(response):
         # Renmove <think> for DeepSeek
         if str(ret).__contains__('</think>'):
             ret = str(ret).split('</think>')[-1].strip()
-            print(f'[{cat}]:Trimed response:{ret}')
-        return ret
+            print(f'\n[{cat}]:Trimed response:{ret}')    
+            
+        ai_text = ret.strip()
+        if ai_text.endswith('.'):
+            ai_text = ai_text[:-1] + ','      
+        if not ai_text.endswith(','):
+            ai_text = f'{ai_text},'            
+        return ai_text    
     else:
         print(f"[{cat}]:Error: Request failed with status code {response.status_code}")
         return []
-
-def llm_send_request(input_prompt, llm_config):
-    data = {
-            'model': llm_config["model"],
-            'messages': [
-                {"role": "system", "content": prime_directive},
-                {"role": "user", "content": input_prompt + ";Response in English"}
-            ],  
-        }
-    response = requests.post(llm_config["base_url"], headers={"Content-Type": "application/json", "Authorization": "Bearer " + llm_config["api_key"]}, json=data, timeout=30)
-    return decode_response(response)
 
 def EncodeImage(src_image):
     img = np.array(src_image).astype(np.float32) / 255.0
@@ -250,7 +245,7 @@ class illustrious_character_select:
                 }),      
             },
             "required": {
-                "character": (character_list, ),
+                "character": (character_list_cn, ),
                 "action": (action_list, ),
                 "optimise_tags": ("BOOLEAN", {"default": True}),
                 "random_action_seed": ("INT", {
@@ -274,13 +269,16 @@ class illustrious_character_select:
         rnd_action = ''
         
         if 'random' == character:
-            index = random_action_seed % len(character_list)
-            rnd_character = character_list[index]
+            index = random_action_seed % len(character_list_cn)
+            rnd_character = character_list_cn[index]
             if 'random' == rnd_character:
-                rnd_character = character_list[index+1]
+                rnd_character = character_list_cn[index+2]
+            elif 'none' == rnd_character:
+                rnd_character = character_list_cn[index+1]
         else:
             rnd_character = character
-        chara = character_dict[rnd_character]
+
+        chara = character_dict[rnd_character] 
             
         if 'random' == action:
             index = random_action_seed % len(action_list)
@@ -306,6 +304,89 @@ class illustrious_character_select:
         info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:{custom_prompt}'
                 
         return (prompt, info, thumb_image, )
+    
+class illustrious_character_select_en:
+    '''
+    Same as lanner0403_illustrious_character_select
+    But list in English tags
+    '''                
+
+    def remove_duplicates(self, input_string):
+        items = input_string.split(',')    
+        unique_items = list(dict.fromkeys(item.strip() for item in items))    
+        result = ', '.join(unique_items)
+        return result
+                   
+    @classmethod
+    def INPUT_TYPES(s):
+        
+        return {
+            "optional": {
+                "custom_prompt": ("STRING", {
+                    "display": "input" ,
+                    "multiline": True
+                }),      
+            },
+            "required": {
+                "character": (character_list_en, ),
+                "action": (action_list, ),
+                "optimise_tags": ("BOOLEAN", {"default": True}),
+                "random_action_seed": ("INT", {
+                    "default": 1024, 
+                    "min": 0, 
+                    "max": 0xffffffffffffffff,
+                    "display": "input"
+                }),
+            },
+        }
+                        
+    RETURN_TYPES = ("STRING","STRING", "IMAGE",)
+    RETURN_NAMES = ("prompt", "info", "thumb_image",)
+    FUNCTION = "illustrious_character_select_en_ex"
+    CATEGORY = cat
+    
+    def illustrious_character_select_en_ex(self, character, action, optimise_tags, random_action_seed, custom_prompt = ''):
+        chara = ''
+        rnd_character = ''
+        act = ''
+        rnd_action = ''
+        
+        if 'random' == character:
+            index = random_action_seed % len(character_list_en)
+            rnd_character = character_list_en[index]
+            if 'random' == rnd_character:
+                rnd_character = character_list_en[index+2]
+            elif 'none' == rnd_character:
+                rnd_character = character_list_en[index+1]
+        else:
+            rnd_character = character
+            
+        chara = rnd_character        
+            
+        if 'random' == action:
+            index = random_action_seed % len(action_list)
+            rnd_action = action_list[index]
+            act = f'{action_dict[rnd_action]}, '
+        elif 'none' == action:
+            rnd_action = action
+            act = ''
+        else:
+            rnd_action = action
+            act = f'{action_dict[rnd_action]}, '               
+                    
+        thumb_image = EncodeImage(Image.new('RGB', (128, 128), (128, 128, 128)))        
+        if wai_image_dict.keys().__contains__(chara):
+            thumb_image = dase64_to_image(wai_image_dict.get(chara))
+        
+        opt_chara = chara
+        if optimise_tags:
+            opt_chara = self.remove_duplicates(chara.replace('_', ' ').replace(':', ' '))
+            opt_chara = opt_chara.replace('(', '\\(').replace(')', '\\)')
+            
+        prompt = f'{opt_chara}, {act}{custom_prompt}'
+        info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:{custom_prompt}'
+                
+        return (prompt, info, thumb_image, )    
 
 def download_file(url, file_path):   
     response = requests.get(url)
@@ -322,7 +403,8 @@ def dase64_to_image(base64_data):
     return EncodeImage(image)
 
 def main():
-    global character_list
+    global character_list_cn
+    global character_list_en
     global character_dict
     global action_list
     global action_dict
@@ -355,8 +437,11 @@ def main():
                 action_list.insert(0, "none")
             elif 'wai_zh_tw' == name:            
                 character_dict.update(json.load(file))
-                character_list = list(character_dict.keys())    
-                character_list.insert(0, "random")
+                character_list_cn = list(character_dict.keys())    
+                character_list_cn.insert(0, "random")
+                
+                character_list_en = list(character_dict.values())   
+                character_list_en.insert(0, "random")
             elif 'wai_settings' == name:
                 wai_llm_config.update(json.load(file))       
             elif 'wai_image' == name and wai_image_cache:
