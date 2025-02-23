@@ -122,7 +122,9 @@ class CharacterSelect(scripts.Script):
         self.relocalizations_component = {value: key for key, value in self.localizations_component.items()}
 
         self.hm1prompt = ""
+        self.hm1promptary = []
         self.hm2prompt = ""
+        self.hm2promptary = []
 
         #text value
         self.hm1btntext = ""
@@ -141,6 +143,9 @@ class CharacterSelect(scripts.Script):
         self.faceprompt = ""
 
         self.allfuncprompt = ""
+
+        #前一次的 prompt
+        self.oldAllPrompt=""
 
         #前一次的 cprompt
         self.oldcprompt=""
@@ -230,7 +235,7 @@ class CharacterSelect(scripts.Script):
             elem_id=f"{self.elm_prfx}_func01_chk"
         )
         CharacterSelect.func02_chk =gr.Checkbox(
-            label="減少細節",
+            label="身材加強",
             render = False,
             container = False,
             elem_id=f"{self.elm_prfx}_func02_chk"
@@ -369,7 +374,7 @@ class CharacterSelect(scripts.Script):
             )
             CharacterSelect.txt2img_neg_prompt_btn.click(
                 fn=self.fetch_neg_prompt,
-                outputs=[self.neg_prompt_component,self.steps_component,self.height_component,self.width_component,self.func00_chk,self.func01_chk,self.func03_chk,self.func04_chk]
+                outputs=[self.neg_prompt_component,self.steps_component,self.height_component,self.width_component,self.prompt_component,self.func00_chk,self.func01_chk,self.func02_chk,self.func03_chk,self.func04_chk]
             )
             #hm
             CharacterSelect.txt2img_hm1_dropdown.change(
@@ -431,14 +436,17 @@ class CharacterSelect(scripts.Script):
             #)
             CharacterSelect.txt2img_radom_C_prompt_btn.click(
                 fn=self.h_m_random_C_prompt,
+                inputs=self.prompt_component,
                 outputs=[self.prompt_component, CharacterSelect.txt2img_hm1_dropdown]
             )
             CharacterSelect.txt2img_radom_A_prompt_btn.click(
                 fn=self.h_m_random_A_prompt,
+                inputs=self.prompt_component,
                 outputs=[self.prompt_component,CharacterSelect.txt2img_hm2_dropdown]
             )
             CharacterSelect.txt2img_radom_prompt_btn.click(
                 fn=self.h_m_random_prompt,
+                inputs=self.prompt_component,
                 outputs=[self.prompt_component, CharacterSelect.txt2img_hm1_dropdown,CharacterSelect.txt2img_hm2_dropdown]
             )
             CharacterSelect.txt2img_cprompt_btn.click(
@@ -525,37 +533,63 @@ class CharacterSelect(scripts.Script):
         self.steps_component.value = self.settings["steps"]
         self.height_component.value = self.settings["height"]
         self.width_component.value = self.settings["width"]
-        return [self.neg_prompt_component.value,self.steps_component.value,self.height_component.value,self.width_component.value,True,True,True,True]
+
+        self.allfuncprompt = ""
+        self.allfuncprompt += self.settings["nsfw"]
+        self.allfuncprompt += self.settings["more_detail"]
+        self.allfuncprompt += self.settings["chihunhentai"]
+        self.allfuncprompt += self.settings["quality"]
+        self.allfuncprompt += self.settings["character_enhance"]
+
+        return [self.neg_prompt_component.value,self.steps_component.value,self.height_component.value,self.width_component.value,self.allfuncprompt,True,True,True,True,True]
     
 
     #隨機人
-    def h_m_random_C_prompt(self):
+    def h_m_random_C_prompt(self,oldprompt):
         self.prompt_component.value = ""
         self.hm1btntext = list(self.hm_config_1_component)[random.randint(1,len(self.hm_config_1_component)-1)]
         self.prompt_component.value += self.hm_config_1_component[self.hm1btntext] + ","
-        self.prompt_component.value += self.hm2btntext + ","
+        if(self.hm2btntext!=""):
+            self.prompt_component.value += self.hm_config_2_component[self.hm2btntext] + ","
         self.prompt_component.value += self.allfuncprompt
+        
+        if(self.oldAllPrompt != ""):
+            oldprompt = oldprompt.replace(", ",",").replace(self.oldAllPrompt.replace(", ",","), self.prompt_component.value)
+        else:
+            oldprompt = self.prompt_component.value
 
-        return [self.prompt_component.value, self.hm1btntext]
+        self.oldAllPrompt = self.prompt_component.value
+
+        return [oldprompt, self.hm1btntext]
 
     #隨機
-    def h_m_random_A_prompt(self):
+    def h_m_random_A_prompt(self,oldprompt):
         self.prompt_component.value = ""
         self.hm2btntext = list(self.hm_config_2_component)[random.randint(1,len(self.hm_config_2_component)-1)]
-        self.prompt_component.value += self.hm1btntext + ","
+        if(self.hm1btntext!=""):
+            self.prompt_component.value += self.hm_config_1_component[self.hm1btntext] + ","
         self.prompt_component.value += self.hm_config_2_component[self.hm2btntext] + ","
         self.prompt_component.value += self.allfuncprompt
 
-        return [self.prompt_component.value, self.hm2btntext]
+        if(self.oldAllPrompt != ""):
+            oldprompt = oldprompt.replace(", ",",").replace(self.oldAllPrompt.replace(", ",","), self.prompt_component.value)
+        else:
+            oldprompt = self.prompt_component.value
+
+        self.oldAllPrompt = self.prompt_component.value
+
+        return [oldprompt, self.hm2btntext]
 
     #隨機
-    def h_m_random_prompt(self):
+    def h_m_random_prompt(self,oldprompt):
         self.prompt_component.value = ""
         self.hm1btntext = list(self.hm_config_1_component)[random.randint(1,len(self.hm_config_1_component)-1)]
         self.hm2btntext = list(self.hm_config_2_component)[random.randint(1,len(self.hm_config_2_component)-1)]
         self.prompt_component.value += self.hm_config_1_component[self.hm1btntext] + ","
         self.prompt_component.value += self.hm_config_2_component[self.hm2btntext] + ","
         self.prompt_component.value += self.allfuncprompt
+
+        self.oldAllPrompt = self.prompt_component.value
 
         return [self.prompt_component.value, self.hm1btntext, self.hm2btntext]
     
@@ -567,7 +601,7 @@ class CharacterSelect(scripts.Script):
         try:
             if(selection == ""):
                 selection = "random"
-            oldhmprompt = self.hm1prompt
+            oldhmprompt = self.hm1prompt.replace(",,",",").replace(", ",",")
             self.hm1prompt = ""
             btntext = ""
             #自行異動
@@ -579,11 +613,22 @@ class CharacterSelect(scripts.Script):
             else:
                 if(selection != "random"):
                     self.hm1prompt = selection + ","
-        
+            
+            #再次過濾
+            self.hm1promptary.append(self.hm1prompt.replace(",,",","))
+            for item in self.hm1promptary:
+                if(item!=self.hm1prompt.replace(",,",",")):
+                    oldprompt=oldprompt.replace(item.replace(",,",",").replace(", ",","),"")
+
             if(oldhmprompt!=""):
-                oldprompt = oldprompt.replace(", ",",").replace(oldhmprompt.replace(", ",","), self.hm1prompt)
+                if(oldprompt.replace(", ",",").find(oldhmprompt)>=0):
+                    oldprompt = oldprompt.replace(", ",",").replace(oldhmprompt, self.hm1prompt)
+                else:
+                    if(oldprompt.replace(", ",",").find(self.hm1prompt.replace(", ",","))==-1):
+                        oldprompt += "," + self.hm1prompt
             else:
-                oldprompt += "," + self.hm1prompt
+                if(oldprompt.replace(", ",",").find(self.hm1prompt.replace(", ",","))==-1):
+                    oldprompt += "," + self.hm1prompt
         
             value = "data:image/jpeg;base64,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"
             index = 0
@@ -628,7 +673,7 @@ class CharacterSelect(scripts.Script):
     def hm2_setting(self, selection, oldprompt):
         if(selection == ""):
             selection = "random"
-        oldhmprompt = self.hm2prompt
+        oldhmprompt = self.hm2prompt.replace(",,",",")
         self.hm2prompt = ""
         btntext = ""
         #自行異動
@@ -639,21 +684,33 @@ class CharacterSelect(scripts.Script):
         else:
             if(selection != "random"):
                 self.hm2prompt = self.hm_config_2_component[selection] + ","
+
+        #再次過濾
+        self.hm2promptary.append(self.hm2prompt.replace(",,",","))
+        for item in self.hm2promptary:
+            if(item!=self.hm2prompt.replace(",,",",")):
+                oldprompt=oldprompt.replace(item.replace(",,",",").replace(", ",","),"")
             
         self.hm2btntext = selection
         if(oldhmprompt!=""):
-            oldprompt = oldprompt.replace(oldhmprompt, self.hm2prompt)
+            if(oldprompt.replace(", ",",").find(oldhmprompt.replace(", ",","))>=0):
+                oldprompt = oldprompt.replace(", ",",").replace(oldhmprompt.replace(", ",","), self.hm2prompt)
+            else:
+                if(oldprompt.replace(", ",",").find(self.hm2prompt.replace(", ",","))==-1):
+                    oldprompt += "," + self.hm2prompt
         else:
-            oldprompt += "," + self.hm2prompt
+            if(oldprompt.replace(", ",",").find(self.hm2prompt.replace(", ",","))==-1):
+                oldprompt += "," + self.hm2prompt
         
         return [selection, oldprompt]
 
     #細節
     def func_setting(self, oldprompt,fv0,fv1,fv2,fv3,fv4):
+        oldprompt.replace(", ",",").replace(self.allfuncprompt.replace(", ",","), "")
         self.allfuncprompt = ""
         oldprompt = oldprompt.replace(self.settings["nsfw"], "")
         oldprompt = oldprompt.replace(self.settings["more_detail"], "")
-        oldprompt = oldprompt.replace(self.settings["less_detail"], "")
+        oldprompt = oldprompt.replace(self.settings["chihunhentai"], "")
         oldprompt = oldprompt.replace(self.settings["quality"], "")
         oldprompt = oldprompt.replace(self.settings["character_enhance"], "")
         if(fv0):
@@ -661,7 +718,7 @@ class CharacterSelect(scripts.Script):
         if(fv1):
             self.allfuncprompt += self.settings["more_detail"]
         if(fv2):
-            self.allfuncprompt += self.settings["less_detail"]
+            self.allfuncprompt += self.settings["chihunhentai"]
         if(fv3):
             self.allfuncprompt += self.settings["quality"]
         if(fv4):
