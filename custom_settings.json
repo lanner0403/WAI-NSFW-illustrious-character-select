@@ -7,7 +7,7 @@
     "width": 768,
     "nsfw": "nsfw,explicit,",
     "more_detail": "<lora:add-detail-xl:1>,",
-    "less_detail": "<lora:add-detail-xl:0.2>,",
+    "chihunhentai": "<lora:ChihunHentai_20230709225610-000004:0.9>,ChihunHentai,",
     "quality": "masterpiece, best quality, newest, absurdres, highres, detailed eyes, beautiful, detailed background, perfect eyes, anime coloring, anime screencap,",
     "character_enhance": "<lora:ponyv4_noob1_2_adamW-000017:0.8>,",
     "ai": true,

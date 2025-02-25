@@ -1,13 +1,24 @@
+WAI-NSFW-illustrious-SDXL 專用角色選擇器
+
 easy to use stable-diffusion-webui for WAI-NSFW-illustrious-SDXL https://civitai.com/models/827184?modelVersionId=1183765
+
+相關安裝 dependence
+
+add-detail-xl  https://huggingface.co/PvDeep/Add-Detail-XL/blob/main/add-detail-xl.safetensors
+
+Pony: People's Works - ponyv4_noob1_2_adamW-000017  https://civitai.green/models/856285/pony-peoples-works?modelVersionId=1036362
+
+ChihunHentai  https://civitai.com/models/106586
+
+SDXL VAE  https://civitai.com/models/296576?modelVersionId=333245
+
+如何安裝: 透過普通 URL 安裝即可
 
 To install: Go to settings tab of stable-diffusion-webui, go to install from url, paste in this url and click install:
 
-if new Character release can see https://civitai.com/articles/8977/epis-embedding-maps-and-graphs
-then update the wai_character2.json
-
-WAI-NSFW-illustrious-SDXL 專用角色選擇器
-
 更新 !!!!!如新功能無法使用請砍掉重新安裝!!!!
+
+2/23 調整部分預設，新增簡易手機模式
 
 2/22 人物翻譯完成，動作部分恕我不太想翻譯(恥力不夠，不小心被人喵到不太好....)，部分prompt調整
 
