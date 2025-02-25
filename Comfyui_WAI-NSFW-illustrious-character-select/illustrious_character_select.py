@@ -42,27 +42,25 @@ wai_illustrious_character_select_files = [
 ]
 
 prime_directive = textwrap.dedent("""\
-    Act as a prompt maker with the following guidelines:               
-    - Break keywords by commas.
-    - Provide high-quality, non-verbose, coherent, brief, concise, and not superfluous prompts.
-    - Focus solely on the visual elements of the picture; avoid art commentaries or intentions.
-    - Construct the prompt with the component format:
-    1. Start with the subject and keyword description.
-    2. Follow with motion keyword description.
-    3. Follow with scene keyword description.
-    4. Finish with background and keyword description.
-    - Limit yourself to no more than 20 keywords per component  
-    - Include all the keywords from the user's request verbatim as the main subject of the response.
-    - Be varied and creative.
-    - Always reply on the same line and no more than 100 words long. 
-    - Do not enumerate or enunciate components.
-    - Create creative additional information in the response.    
-    - Response in English.
-    - Response prompt only.                                                
-    The following is an illustrative example for you to see how to construct a prompt your prompts should follow this format but always coherent to the subject worldbuilding or setting and consider the elements relationship.
-    Example:
-    Demon Hunter,Cyber City,A Demon Hunter,standing,lone figure,glow eyes,deep purple light,cybernetic exoskeleton,sleek,metallic,glowing blue accents,energy weapons,Fighting Demon,grotesque creature,twisted metal,glowing red eyes,sharp claws,towering structures,shrouded haze,shimmering energy,                            
-    Make a prompt for the following Subject:
+    You are a Stable Diffusion prompt writer. Follow these guidelines to generate prompts:
+    1.Prohibited keywords: Do not use any gender-related words such as "man," "woman," "boy," "girl," "person," or similar terms.
+    2.Format: Provide 8 to 16 keywords separated by commas, keeping the prompt concise.
+    3.Content focus: Concentrate solely on visual elements of the image; avoid abstract concepts, art commentary, or descriptions of intent.
+    4.Keyword categories: Ensure the prompt includes keywords from the following categories:
+        - Theme or style (e.g., cyberpunk, fantasy, wasteland)
+        - Location or scene (e.g., back alley, forest, street)
+        - Visual elements or atmosphere (e.g., neon lights, fog, ruined)
+        - Camera angle or composition (e.g., front view, side view, close-up)
+        - Action or expression (e.g., standing, jumping, smirk, calm)
+        - Environmental details (e.g., graffiti, trees)
+        - Time of day or lighting (e.g., sunny day, night, golden hour)
+        - Additional effects (e.g., depth of field, blurry background)
+    5.Creativity and coherence: Select keywords that are diverse and creative, forming a vivid and coherent scene.
+    6.User input: Incorporate the exact keywords from the user's query into the prompt where appropriate.
+    7.Emphasis handling: If the user emphasizes a particular aspect, you may increase the number of keywords in that category (up to 6), but ensure the total number of keywords remains between 8 and 16.
+    8.Character description: You may describe actions and expressions but must not mention specific character traits (such as gender or age). Words that imply a character (e.g., "warrior") are allowed as long as they do not violate the prohibited keywords.
+    9.Output: Provide the answer as a single line of comma-separated keywords.
+    Prompt for the following theme:
     """)
 
 def decode_response(response):
@@ -88,14 +86,49 @@ def EncodeImage(src_image):
     img = np.array(src_image).astype(np.float32) / 255.0
     img = torch.from_numpy(img)[None,]
     return img
+
+def decode_response(response):
+    if response.status_code == 200:
+        ret = response.json().get('choices', [{}])[0].get('message', {}).get('content', '')
+        print(f'[{cat}]:Response:{ret}')
+        # Renmove <think> for DeepSeek
+        if str(ret).__contains__('</think>'):
+            ret = str(ret).split('</think>')[-1].strip()
+            print(f'\n[{cat}]:Trimed response:{ret}')    
+            
+        ai_text = ret.strip()
+        if ai_text.endswith('.'):
+            ai_text = ai_text[:-1] + ','      
+        if not ai_text.endswith(','):
+            ai_text = f'{ai_text},'            
+        return ai_text    
+    else:
+        print(f"[{cat}]:Error: Request failed with status code {response.status_code}")
+        return []
+
+def llm_send_request(input_prompt, url, model, api_key, system_prompt=prime_directive):
+    data = {
+            'model': model,
+            'messages': [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": input_prompt + ";Response in English"}
+            ],  
+        }
+    response = requests.post(url, headers={"Content-Type": "application/json", "Authorization": "Bearer " + api_key}, json=data, timeout=30)
+    return decode_response(response)
     
 class llm_prompt_gen:
     '''
-    llm_prompt_gen
+    lanner0403_llm_prompt_gen_node
     
     An AI based prpmpte gen node
     
-    Input:
+    Optional:
+    system_prompt      - System prompt for AI Gen
+    
+    Input:  
+    url                - The url to your Remote AI Gen
+    model              - Model select
     prompt             - Contents that you need AI to generate
     random_action_seed - MUST connect to `Seed Generator`
     
@@ -106,7 +139,21 @@ class llm_prompt_gen:
     @classmethod
     def INPUT_TYPES(s):
         return {
+            "optional": {
+                "system_prompt": ("STRING", {
+                    "display": "input" ,
+                    "multiline": True
+                }),                      
+            },
             "required": {
+                "url":("STRING", {
+                    "multiline": False,
+                    "default": wai_llm_config["base_url"]
+                }),
+                "model":("STRING", {
+                    "multiline": False,
+                    "default": wai_llm_config["model"]
+                }),
                 "prompt": ("STRING", {
                     "display": "input" ,
                     "multiline": True
@@ -125,18 +172,18 @@ class llm_prompt_gen:
     FUNCTION = "llm_prompt_node_ex"
     CATEGORY = cat
     
-    def llm_prompt_node_ex(self, prompt, random_action_seed):
+    def llm_prompt_node_ex(self, url, model, prompt, random_action_seed, system_prompt=prime_directive):
         _ = random_action_seed
-        return (llm_send_request(prompt, wai_llm_config),)   
+        return (llm_send_request(prompt, url, model, wai_llm_config["api_key"], system_prompt),)   
 
-def llm_send_local_request(input_prompt, server, temperature=0.5, n_predict=512):
+def llm_send_local_request(input_prompt, server, temperature=0.5, n_predict=512, system_prompt=prime_directive):
     data = {
             "temperature": temperature,
             "n_predict": n_predict,
             "cache_prompt": True,
             "stop": ["<|im_end|>"],
             'messages': [
-                {"role": "system", "content": prime_directive},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": input_prompt + ";Response in English"}
             ],  
         }
@@ -155,6 +202,9 @@ class mira_local_llm_prompt_gen:
 
     For DeepSeek, you may need a larger n_predict 2048~ and lower temperature 0.4~, for llama3.3 256~512 may enough.
 
+    Optional:
+    system_prompt      - System prompt for AI Gen
+
     Input:
     server             - Your llama_cpp server addr. E.g. http://127.0.0.1:8080/chat/completions
     temperature        - A parameter that influences the language model's output, determining whether the output is more random and creative or more predictable.
@@ -169,6 +219,12 @@ class mira_local_llm_prompt_gen:
     @classmethod
     def INPUT_TYPES(s):
         return {
+            "optional": {
+                "system_prompt": ("STRING", {
+                    "display": "input" ,
+                    "multiline": True
+                }),                      
+            },
             "required": {
                 "server": ("STRING", {
                     "default": "http://127.0.0.1:8080/chat/completions", 
@@ -205,9 +261,9 @@ class mira_local_llm_prompt_gen:
     FUNCTION = "local_llm_prompt_gen_ex"
     CATEGORY = cat
     
-    def local_llm_prompt_gen_ex(self, server, temperature, n_predict, prompt, random_action_seed):
+    def local_llm_prompt_gen_ex(self, server, temperature, n_predict, prompt, random_action_seed, system_prompt=prime_directive):
         _ = random_action_seed
-        return (llm_send_local_request(prompt, server, temperature=temperature, n_predict=n_predict),)     
+        return (llm_send_local_request(prompt, server, temperature=temperature, n_predict=n_predict, system_prompt=system_prompt),)     
     
 class illustrious_character_select:
     '''
@@ -297,8 +353,10 @@ class illustrious_character_select:
         
         opt_chara = chara
         if optimise_tags:
-            opt_chara = self.remove_duplicates(chara.replace('_', ' ').replace(':', ' '))
+            opt_chara = opt_chara.split(',')[1].strip()
             opt_chara = opt_chara.replace('(', '\\(').replace(')', '\\)')
+            if not opt_chara.endswith(','):
+                opt_chara = f'{opt_chara},'  
             
         prompt = f'{opt_chara}, {act}{custom_prompt}'
         info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:{custom_prompt}'
@@ -380,8 +438,10 @@ class illustrious_character_select_en:
         
         opt_chara = chara
         if optimise_tags:
-            opt_chara = self.remove_duplicates(chara.replace('_', ' ').replace(':', ' '))
+            opt_chara = opt_chara.split(',')[1].strip()
             opt_chara = opt_chara.replace('(', '\\(').replace(')', '\\)')
+            if not opt_chara.endswith(','):
+                opt_chara = f'{opt_chara},'  
             
         prompt = f'{opt_chara}, {act}{custom_prompt}'
         info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:{custom_prompt}'
