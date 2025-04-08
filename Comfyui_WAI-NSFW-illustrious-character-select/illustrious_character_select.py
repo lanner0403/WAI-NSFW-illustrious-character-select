@@ -359,7 +359,7 @@ class illustrious_character_select:
                 opt_chara = f'{opt_chara},'  
             
         prompt = f'{opt_chara}, {act}{custom_prompt}'
-        info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom Promot:{custom_prompt}'
+        info = f'Character:{rnd_character}[{opt_chara}]\nAction:{rnd_action}[{act}]\nCustom prompt:{custom_prompt}'
                 
         return (prompt, info, thumb_image, )
     
