@@ -1,3 +1,8 @@
+New ComfyUI release with new character list moved to [Mira](https://github.com/mirabarukaso/ComfyUI_Mira#wai-illustrious-character-select)      
+[character_select_stand_alone_app](https://github.com/mirabarukaso/character_select_stand_alone_app)     
+
+------
+
 WAI-NSFW-illustrious-SDXL 專用角色選擇器
 
 easy to use stable-diffusion-webui for WAI-NSFW-illustrious-SDXL https://civitai.com/models/827184?modelVersionId=1183765
