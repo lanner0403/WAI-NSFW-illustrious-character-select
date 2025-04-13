@@ -98,7 +98,7 @@ class CharacterSelect(scripts.Script):
         self.hm_config_1_component = self.get_config2(self.hm_config_1)
         #for item in self.get_character(self.hm_config_7):
         #    self.hm_config_1_component.update({item : item})
-        num_parts = 10
+        num_parts = 11
         self.hm_config_1_img = []
         for i in range(num_parts):            
             for item in self.get_config2(f"output_{i+1}.json"):
