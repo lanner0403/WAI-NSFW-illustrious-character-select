@@ -18,6 +18,8 @@ To install: Go to settings tab of stable-diffusion-webui, go to install from url
 
 更新 !!!!!如新功能無法使用請砍掉重新安裝!!!!
 
+4/13 新增100名角色
+
 2/23 調整部分預設，新增簡易手機模式
 
 2/22 人物翻譯完成，動作部分恕我不太想翻譯(恥力不夠，不小心被人喵到不太好....)，部分prompt調整
